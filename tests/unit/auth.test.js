@@ -38,10 +38,21 @@ function fakeIdentity({ flow, chromeTokens = ['ctok'] } = {}) {
   };
 }
 
-const okRedirect = (token = 'tok', expiresIn = 3599) => `${REDIRECT}#access_token=${token}&token_type=Bearer&expires_in=${expiresIn}&scope=x`;
+/** Google-like redirect: echoes `state` from the request URL and grants drive.file. */
+const okRedirect = (opts, token = 'tok', expiresIn = 3599, extra = {}) => {
+  const req = new URL(opts.url).searchParams;
+  const p = new URLSearchParams({
+    access_token: token,
+    token_type: 'Bearer',
+    expires_in: String(expiresIn),
+    scope: extra.scope ?? DRIVE_SCOPE,
+    state: extra.state ?? req.get('state'),
+  });
+  return `${REDIRECT}#${p}`;
+};
 
 function setup({ clientId = CLIENT, manifestClientId = 'YOUR_CLIENT_ID.apps.googleusercontent.com', flow, now } = {}) {
-  const identity = fakeIdentity({ flow: flow ?? (() => okRedirect()) });
+  const identity = fakeIdentity({ flow: flow ?? ((opts) => okRedirect(opts)) });
   const session = memoryStore();
   const local = memoryStore(clientId ? { [STORAGE.clientId]: clientId } : {});
   let t = 1_000_000;
@@ -86,8 +97,13 @@ describe('auth URL / redirect parsing', () => {
     const u = new URL(buildAuthUrl({ clientId: CLIENT, redirectUri: REDIRECT, interactive: false }));
     assert.equal(u.searchParams.get('prompt'), 'none');
   });
-  test('parses token and expiry from the fragment', () => {
-    assert.deepEqual(parseAuthRedirect(okRedirect('abc', 100)), { token: 'abc', expiresIn: 100 });
+  test('parses token, expiry, state and scopes from the fragment', () => {
+    const r = parseAuthRedirect(`${REDIRECT}#access_token=abc&expires_in=100&state=s1&scope=a%20b`);
+    assert.deepEqual(r, { token: 'abc', expiresIn: 100, state: 's1', scopes: ['a', 'b'] });
+  });
+  test('auth URL carries the state parameter', () => {
+    const u = new URL(buildAuthUrl({ clientId: CLIENT, redirectUri: REDIRECT, interactive: true, state: 'xyz' }));
+    assert.equal(u.searchParams.get('state'), 'xyz');
   });
   test('parses errors', () => {
     assert.deepEqual(parseAuthRedirect(`${REDIRECT}#error=access_denied`), { error: 'access_denied' });
@@ -129,7 +145,7 @@ describe('createAuth – web sign-in', () => {
 
   test('refreshes before expiry', async () => {
     let n = 0;
-    const { auth, clock } = setup({ flow: () => okRedirect(`tok${++n}`, 3600) });
+    const { auth, clock } = setup({ flow: (opts) => okRedirect(opts, `tok${++n}`, 3600) });
     assert.equal(await auth.getToken(), 'tok1');
     clock.advance(3600_000 - 60_000); // inside the 2-minute refresh margin
     assert.equal(await auth.getToken(), 'tok2');
@@ -137,7 +153,7 @@ describe('createAuth – web sign-in', () => {
 
   test('silent fails → interactive window when allowed', async () => {
     const { auth, identity } = setup({
-      flow: (opts) => (opts.interactive ? okRedirect('itok') : Promise.reject(new Error('User interaction required.'))),
+      flow: (opts) => (opts.interactive ? okRedirect(opts, 'itok') : Promise.reject(new Error('User interaction required.'))),
     });
     await assert.rejects(auth.getToken({ interactive: false }), AuthError);
     assert.equal(await auth.getToken({ interactive: true }), 'itok');
@@ -159,10 +175,33 @@ describe('createAuth – web sign-in', () => {
   });
 
   test('concurrent callers share one silent sign-in', async () => {
-    const { auth, identity } = setup({ flow: () => new Promise((r) => setTimeout(() => r(okRedirect()), 5)) });
+    const { auth, identity } = setup({ flow: (opts) => new Promise((r) => setTimeout(() => r(okRedirect(opts)), 5)) });
     const tokens = await Promise.all([auth.getToken(), auth.getToken(), auth.getToken()]);
     assert.deepEqual(tokens, ['tok', 'tok', 'tok']);
     assert.equal(identity.calls.flows.length, 1);
+  });
+
+  test('SECURITY: a response with a different state is rejected (CSRF / token injection)', async () => {
+    const { auth, session } = setup({ flow: (opts) => okRedirect(opts, 'evil', 3600, { state: 'forged' }) });
+    await assert.rejects(auth.getToken(), (e) => e.code === 'failed' && /did not match/.test(e.message));
+    assert.equal(await session.get(STORAGE.token), undefined, 'forged token not cached');
+  });
+
+  test('SECURITY: every sign-in uses a fresh random state', async () => {
+    const { auth, identity } = setup();
+    await auth.getToken();
+    await auth.removeToken();
+    await auth.getToken();
+    const states = identity.calls.flows.map((f) => new URL(f.url).searchParams.get('state'));
+    assert.equal(states.length, 2);
+    assert.match(states[0], /^[0-9a-f]{32}$/);
+    assert.notEqual(states[0], states[1]);
+  });
+
+  test('user unticked the Drive permission → scope_denied with a clear message', async () => {
+    const { auth, session } = setup({ flow: (opts) => okRedirect(opts, 'tok', 3600, { scope: 'openid' }) });
+    await assert.rejects(auth.getToken(), (e) => e.code === 'scope_denied' && /tick the Drive box/.test(e.message));
+    assert.equal(await session.get(STORAGE.token), undefined);
   });
 
   test('removeToken clears the cache → next call signs in again', async () => {
@@ -173,10 +212,25 @@ describe('createAuth – web sign-in', () => {
     assert.equal(identity.calls.flows.length, 2);
   });
 
-  test('disconnect clears the cached token', async () => {
-    const { auth, session } = setup();
+  test('disconnect revokes with the token in the POST body (not the URL) and clears the cache', async () => {
+    const calls = [];
+    const identity = fakeIdentity({ flow: (opts) => okRedirect(opts, 'secret-tok') });
+    const session = memoryStore();
+    const auth = createAuth({
+      identity,
+      session,
+      local: memoryStore({ [STORAGE.clientId]: CLIENT }),
+      manifest: {},
+      fetch: async (url, init) => {
+        calls.push({ url, init });
+        return new Response('');
+      },
+    });
     await auth.getToken();
     await auth.disconnect();
+    assert.equal(calls[0].url, 'https://oauth2.googleapis.com/revoke');
+    assert.ok(!calls[0].url.includes('secret-tok'));
+    assert.equal(calls[0].init.body, 'token=secret-tok');
     assert.equal(await session.get(STORAGE.token), undefined);
   });
 });

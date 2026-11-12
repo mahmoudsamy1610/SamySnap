@@ -37,6 +37,16 @@ export const STORAGE = {
   state: 'recState', // session (cleared when the browser restarts)
 };
 
+/** True only for https://drive.google.com/… links (never javascript: etc.). */
+export function isDriveLink(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && u.hostname === 'drive.google.com';
+  } catch {
+    return false;
+  }
+}
+
 /** Build the public "view" link for a Drive file. */
 export function driveViewLink(fileId) {
   return `https://drive.google.com/file/d/${fileId}/view`;

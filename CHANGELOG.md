@@ -3,6 +3,20 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.2.1 – 2026-11-12
+
+- **New shortcuts:** **Ctrl+Shift+9** starts and stops recording, and **Ctrl+Shift+8** pauses (⌘⇧9 / ⌘⇧8 on Mac).
+  - The old Alt+Shift keys clashed with the Windows keyboard-language switch and with a reading feature.
+  - The popup shows the active shortcut; click it to change shortcuts.
+- **Security hardening** (see `SECURITY.md`):
+  - Google sign-in now uses a random `state` value and checks it, so a forged sign-in response is rejected.
+  - Checks that Google actually granted Drive access. If the box was unticked, you get a clear message instead of failing later.
+  - Every internal message checks that it comes from SamySnap itself.
+  - Disconnect sends the token in the request body instead of the URL.
+  - Links are only clickable if they are real `https://drive.google.com` links.
+  - No HTML is built from strings.
+  - An explicit strict Content Security Policy is declared.
+
 ## 1.2.0 – 2026-11-12
 
 - **Pause / resume recording:** from the popup, the recorder window, or the new **Alt+Shift+P** shortcut.

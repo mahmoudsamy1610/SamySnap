@@ -10,8 +10,8 @@
 // extra click. The window minimizes itself once recording starts and closes
 // itself when the upload is complete.
 
-import { TIMESLICE_MS, STORAGE } from '../lib/constants.js';
-import { MSG, PHASE, TARGET } from '../lib/messages.js';
+import { TIMESLICE_MS, STORAGE, isDriveLink } from '../lib/constants.js';
+import { MSG, PHASE, TARGET, isFromThisExtension } from '../lib/messages.js';
 import { defaultAuthFetch } from '../lib/auth.js';
 import { DriveClient } from '../lib/drive.js';
 import { ResumableUploader } from '../lib/uploader.js';
@@ -197,7 +197,7 @@ function beginRecording() {
   rec.startedAt = Date.now();
 
   ui.link.textContent = rec.prep.link;
-  ui.link.href = rec.prep.link;
+  if (isDriveLink(rec.prep.link)) ui.link.href = rec.prep.link;
   ui.stop.disabled = false;
   ui.stop.textContent = 'Stop';
   ui.pause.hidden = false;
@@ -451,7 +451,8 @@ async function fail(message, prepPromise) {
 // Wiring
 // ---------------------------------------------------------------------------
 
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (!isFromThisExtension(sender)) return false;
   if (msg?.target !== TARGET.recorder) return false;
   if (msg.type === MSG.RECORDER_STOP) stop('background');
   else if (msg.type === MSG.RECORDER_PAUSE) pause();

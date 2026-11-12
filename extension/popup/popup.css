@@ -27,3 +27,5 @@ button.pause { width: auto; flex: none; padding-left: 14px; padding-right: 14px;
 .bars { width: 10px; height: 11px; display: inline-block; border-left: 3px solid currentColor; border-right: 3px solid currentColor; box-sizing: border-box; }
 .play { width: 0; height: 0; display: inline-block; border-left: 10px solid currentColor; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
 .paused-indicator { color: #e37400; font-weight: 700; }
+header .kbd { font-size: 11px; color: var(--muted); }
+header .kbd:hover { color: var(--accent); }

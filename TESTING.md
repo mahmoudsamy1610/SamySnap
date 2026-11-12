@@ -19,9 +19,9 @@ Do this once after [SETUP.md](SETUP.md), and again after any change.
 
 **Extras**
 
-- [ ] Press **Alt+Shift+R** to start, and press it again to stop.
+- [ ] Press **Ctrl+Shift+9** to start, and press it again to stop.
 - [ ] While recording, click **Pause**. The badge turns amber **II** and the timer stops. Wait 10 seconds, click **Resume**, then stop. The video skips the paused part.
-- [ ] Press **Alt+Shift+P** to pause and resume. Click **Stop** while paused, and the link is still copied.
+- [ ] Press **Ctrl+Shift+8** to pause and resume. Click **Stop** while paused, and the link is still copied.
 - [ ] Start recording, then click Chrome's own **Stop sharing** bar. The link is copied and the upload finishes.
 - [ ] Tick **Include microphone**, record while talking, and check that your voice is in the video. You're asked for mic permission the first time.
 - [ ] Record a **tab** with "Share tab audio" ticked and check that the tab's sound is in the video.

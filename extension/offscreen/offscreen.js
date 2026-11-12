@@ -3,7 +3,7 @@
 // document, so we use the classic textarea + execCommand('copy') trick, which
 // works here even when no extension UI is open.
 
-import { MSG, TARGET } from '../lib/messages.js';
+import { MSG, TARGET, isFromThisExtension } from '../lib/messages.js';
 
 export function copyText(text, doc = document) {
   const el = doc.getElementById('clip');
@@ -14,7 +14,8 @@ export function copyText(text, doc = document) {
   return ok;
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!isFromThisExtension(sender)) return false;
   if (msg?.target !== TARGET.offscreen || msg.type !== MSG.OFFSCREEN_COPY) return false;
   try {
     sendResponse({ ok: copyText(String(msg.text ?? '')) });

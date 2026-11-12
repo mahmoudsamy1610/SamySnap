@@ -149,6 +149,31 @@ describe('setup guide', { timeout: 60_000 }, () => {
     assert.equal(await setup.textContent('#connect'), 'Connect Google Drive');
   });
 
+  test('unticking the Drive permission in Google → clear message, nothing saved as connected', async () => {
+    const h = await start({ configured: false });
+    const setup = await waitForSetupTab(h);
+    await h.setAuth('noscope');
+    await setup.goto(h.url('setup/setup.html?step=6'));
+    await setup.fill('#client-id', TEST_CLIENT_ID);
+    await setup.click('#connect');
+    await setup.waitForSelector('#connect-error:not([hidden])');
+    assert.match(await setup.textContent('#connect-error'), /tick the Drive box/);
+    assert.equal(await h.local('driveConnected'), undefined);
+  });
+
+  test('SECURITY: a forged sign-in response (wrong state) is rejected', async () => {
+    const h = await start({ configured: false });
+    const setup = await waitForSetupTab(h);
+    await h.setAuth('badstate');
+    await setup.goto(h.url('setup/setup.html?step=6'));
+    await setup.fill('#client-id', TEST_CLIENT_ID);
+    await setup.click('#connect');
+    await setup.waitForSelector('#connect-error:not([hidden])');
+    assert.equal(await h.local('driveConnected'), undefined);
+    const token = await h.page.evaluate(async () => (await chrome.storage.session.get('googleAccessToken')).googleAccessToken);
+    assert.equal(token, undefined, 'forged token was not stored');
+  });
+
   test('"start over" forgets the key and goes back to step 1', async () => {
     const h = await start();
     await h.page.goto(h.url('setup/setup.html'));

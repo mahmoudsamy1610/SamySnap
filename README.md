@@ -13,8 +13,8 @@ When you click **Stop**, a shareable Drive link is **already on your clipboard**
 - A **built-in setup guide** that opens on install, with plain-language steps and Copy buttons. You paste your key; there's no file editing.
 - One-time Google sign-in, using the least-privilege `drive.file` scope.
 - 1080p / 30 fps, VP9 (falls back to VP8), about 4 Mbps, with optional tab or system audio plus microphone.
-- Red **REC** badge, **Alt+Shift+R** shortcut, and a "Link copied to clipboard." notification.
-- **Pause / resume** (popup, recorder window or **Alt+Shift+P**). The paused part is skipped in the video.
+- Red **REC** badge, **Ctrl+Shift+9** shortcut (⌘⇧9 on Mac), and a "Link copied to clipboard." notification.
+- **Pause / resume** (popup, recorder window or **Ctrl+Shift+8**). The paused part is skipped in the video.
 - Videos are saved in Drive under **Bug Recordings** as `bug-YYYY-MM-DD_HH-mm-ss.webm`.
 - Uploads retry with backoff and resume from the last received byte. If the upload really fails, you can **download the video locally**.
 
@@ -46,7 +46,7 @@ Click Stop
 
 ```
 extension/
-├── manifest.json        MV3; "key" (stable ID), oauth2 (drive.file), Alt+Shift+R command
+├── manifest.json        MV3; "key" (stable ID), oauth2 (drive.file), Ctrl+Shift+9 command
 ├── background.js        Service worker. Owns the shared state (chrome.storage.session),
 │                        badge, notifications, shortcut and link history. Copies the
 │                        link on Stop via the offscreen document.

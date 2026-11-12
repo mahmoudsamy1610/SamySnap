@@ -58,7 +58,7 @@ describe('extension basics', { timeout: 60_000 }, () => {
     assert.equal(await h.page.isHidden('#connect-view'), true);
   });
 
-  test('start/stop command is registered (Alt+Shift+R when Chrome assigns it)', async () => {
+  test('start/stop command is registered (Ctrl+Shift+9 when Chrome assigns it)', async () => {
     const h = await start({ configured: false });
     const cmds = await h.page.evaluate(() => chrome.commands.getAll());
     const c = cmds.find((x) => x.name === 'toggle-recording');
@@ -67,7 +67,7 @@ describe('extension basics', { timeout: 60_000 }, () => {
     // Chrome leaves the suggested key unassigned when it conflicts with another
     // shortcut, or for extensions loaded via --load-extension (as in this test).
     // Users can then set it at chrome://extensions/shortcuts.
-    if (c.shortcut) assert.match(c.shortcut, /Alt\+Shift\+R|⌥⇧R/);
+    if (c.shortcut) assert.match(c.shortcut, /Ctrl\+Shift\+9|⌘⇧9/);
   });
 
   test('signed in: popup shows Record, mic off by default, empty history', async () => {

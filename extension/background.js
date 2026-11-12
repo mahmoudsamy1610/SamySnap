@@ -8,7 +8,7 @@
 //   * owns the badge, notifications, keyboard shortcut and the link history.
 
 import { STORAGE } from './lib/constants.js';
-import { MSG, PHASE, TARGET } from './lib/messages.js';
+import { MSG, PHASE, TARGET, isFromThisExtension } from './lib/messages.js';
 import { upsertHistory, patchHistory } from './lib/history.js';
 import { defaultAuth, defaultAuthFetch, AuthError, isValidClientId, cleanClientId } from './lib/auth.js';
 import { DriveClient } from './lib/drive.js';
@@ -271,6 +271,7 @@ async function onRecorderUpdate(patch) {
 function explainAuthError(err) {
   if (err instanceof AuthError) {
     if (err.code === 'not_configured') return 'Google Drive is not set up yet. Open the setup guide from the SamySnap popup.';
+    if (err.code === 'scope_denied') return err.message;
     if (err.code === 'cancelled') {
       return 'The Google window was closed before finishing. If Google showed an error page, re-check steps 4 and 5 of the setup guide.';
     }
@@ -377,7 +378,8 @@ const handlers = {
   },
 };
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!isFromThisExtension(sender)) return false;
   if (msg?.target && msg.target !== TARGET.background) return false;
   const handler = handlers[msg?.type];
   if (!handler) return false;

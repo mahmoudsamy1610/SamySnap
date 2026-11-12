@@ -131,11 +131,11 @@ Click the SamySnap icon, then **Setup**, then go to step 6 of the guide. Paste t
    Allow it in **System Settings → Privacy & Security → Screen Recording**, then restart Chrome.
 5. Click **Record**. A small SamySnap window opens with Chrome's picker. Choose **Entire screen**, a window or a tab, then click **Share**.
    The window minimizes itself and the icon shows a red **REC** badge.
-6. Click the icon, then **Stop & copy link**, or press **Alt+Shift+R**. The link is on your clipboard at once.
+6. Click the icon, then **Stop & copy link**, or press **Ctrl+Shift+9**. The link is on your clipboard at once.
 
 ### Keyboard shortcut
 
-The default is **Alt+Shift+R**, which starts and stops recording. If Chrome didn't assign it (because another extension already uses it), set it at `chrome://extensions/shortcuts`.
+The defaults are **Ctrl+Shift+9** to start and stop recording, and **Ctrl+Shift+8** to pause (**⌘⇧9** and **⌘⇧8** on Mac). The popup shows the active shortcut at the top right. Click it to change shortcuts at `chrome://extensions/shortcuts`, which you'll also need to do if another extension already uses that key.
 
 ### Troubleshooting
 

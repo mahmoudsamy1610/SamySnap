@@ -17,7 +17,7 @@ const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const REFRESH_MARGIN_MS = 2 * 60 * 1000; // refresh 2 min before expiry
 
 export class AuthError extends Error {
-  /** @param {'not_configured'|'cancelled'|'failed'} code */
+  /** @param {'not_configured'|'cancelled'|'scope_denied'|'failed'} code */
   constructor(code, message, { cause } = {}) {
     super(message, { cause });
     this.name = 'AuthError';
@@ -37,7 +37,7 @@ export function cleanClientId(raw) {
   return m ? m[0] : s;
 }
 
-export function buildAuthUrl({ clientId, redirectUri, interactive }) {
+export function buildAuthUrl({ clientId, redirectUri, interactive, state }) {
   const p = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -45,6 +45,7 @@ export function buildAuthUrl({ clientId, redirectUri, interactive }) {
     scope: DRIVE_SCOPE,
     include_granted_scopes: 'true',
   });
+  if (state) p.set('state', state); // anti-CSRF: must come back unchanged
   if (!interactive) p.set('prompt', 'none');
   return `${AUTH_ENDPOINT}?${p}`;
 }
@@ -57,7 +58,19 @@ export function parseAuthRedirect(url) {
   if (error) return { error };
   const token = params.get('access_token');
   if (!token) return { error: 'no_token' };
-  return { token, expiresIn: Number(params.get('expires_in') || 3600) };
+  return {
+    token,
+    expiresIn: Number(params.get('expires_in') || 3600),
+    state: params.get('state'),
+    scopes: (params.get('scope') || '').split(/\s+/).filter(Boolean),
+  };
+}
+
+/** Random, unguessable value for the OAuth `state` parameter. */
+export function newState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -81,7 +94,8 @@ export function createAuth({ identity, session, local, manifest, fetch: f = glob
   }
 
   async function webFlow(clientId, interactive) {
-    const url = buildAuthUrl({ clientId, redirectUri: identity.getRedirectURL(), interactive });
+    const state = newState();
+    const url = buildAuthUrl({ clientId, redirectUri: identity.getRedirectURL(), interactive, state });
     let redirect;
     try {
       redirect = await identity.launchWebAuthFlow(
@@ -100,6 +114,15 @@ export function createAuth({ identity, session, local, manifest, fetch: f = glob
     if (r.error) {
       if (r.error === 'access_denied') throw new AuthError('cancelled', 'Access to Google Drive was not allowed.');
       throw new AuthError('failed', `Google sign-in error: ${r.error}`);
+    }
+    // Reject responses we did not ask for (CSRF / token injection).
+    if (r.state !== state) throw new AuthError('failed', 'Google sign-in response did not match the request.');
+    // Google lets users untick permissions; without drive.file nothing works.
+    if (r.scopes.length > 0 && !r.scopes.includes(DRIVE_SCOPE)) {
+      throw new AuthError(
+        'scope_denied',
+        'SamySnap needs permission to save files to your Google Drive. Connect again and tick the Drive box.',
+      );
     }
     await session.set(STORAGE.token, { token: r.token, expiresAt: now() + r.expiresIn * 1000 });
     return r.token;
@@ -153,7 +176,12 @@ export function createAuth({ identity, session, local, manifest, fetch: f = glob
     }
     if (token) {
       try {
-        await f(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' });
+        // Token in the POST body (not the URL) so it never lands in URL logs.
+        await f('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token }).toString(),
+        });
       } catch {
         /* offline – still clear locally */
       }

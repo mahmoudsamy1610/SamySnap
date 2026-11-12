@@ -34,7 +34,11 @@ function installAuthStub() {
   chrome.identity.launchWebAuthFlow = async ({ url, interactive }) => {
     const mode = (await chrome.storage.local.get('__testAuth')).__testAuth || 'ok';
     if (mode === 'deny') throw new Error(interactive ? 'The user did not approve access.' : 'User interaction required.');
-    return `${chrome.identity.getRedirectURL()}#access_token=tok-1&token_type=Bearer&expires_in=3599`;
+    const req = new URL(url).searchParams;
+    // Like Google: echo `state`; 'noscope' = user unticked the Drive permission.
+    const scope = mode === 'noscope' ? 'openid' : req.get('scope');
+    const state = mode === 'badstate' ? 'forged' : req.get('state');
+    return `${chrome.identity.getRedirectURL()}#access_token=tok-1&token_type=Bearer&expires_in=3599&scope=${encodeURIComponent(scope)}&state=${state}`;
   };
 }
 

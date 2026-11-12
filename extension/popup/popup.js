@@ -1,7 +1,7 @@
 // Popup UI. It holds no recording logic: it renders the shared state from
 // chrome.storage (written by the service worker) and sends commands.
 
-import { STORAGE } from '../lib/constants.js';
+import { STORAGE, isDriveLink } from '../lib/constants.js';
 import { MSG, PHASE, TARGET } from '../lib/messages.js';
 import { formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
@@ -58,15 +58,7 @@ function render() {
 
   // Live line: timer + phase.
   $('live').hidden = !(recording || finishing || s.phase === PHASE.done);
-  $('phase-label').innerHTML = paused
-    ? '<span class="paused-indicator">II</span> Paused'
-    : recording
-    ? '<span class="dot rec-indicator"></span> Recording'
-    : finishing
-      ? 'Uploading…'
-      : s.phase === PHASE.done
-        ? '✓ Done'
-        : '';
+  renderPhaseLabel(paused ? 'paused' : recording ? 'recording' : finishing ? 'finishing' : s.phase);
   updateTimer();
   clearInterval(timerInterval);
   if (recording && !paused) timerInterval = setInterval(updateTimer, 500);
@@ -96,6 +88,17 @@ function render() {
   $('download').hidden = !s.canDownload;
 }
 
+/** Build the phase label with DOM APIs (no innerHTML). */
+function renderPhaseLabel(phase) {
+  const el = $('phase-label');
+  el.replaceChildren();
+  const icon = (cls, text = '') => Object.assign(document.createElement('span'), { className: cls, textContent: text });
+  if (phase === 'paused') el.append(icon('paused-indicator', 'II'), ' Paused');
+  else if (phase === 'recording') el.append(icon('dot rec-indicator'), ' Recording');
+  else if (phase === 'finishing') el.append('Uploading…');
+  else if (phase === PHASE.done) el.append('✓ Done');
+}
+
 function updateTimer() {
   const s = state;
   if (!s.startedAt) {
@@ -114,7 +117,7 @@ function renderHistory(list = []) {
     const li = tpl.content.firstElementChild.cloneNode(true);
     const a = li.querySelector('.name');
     a.textContent = item.name || item.link;
-    a.href = item.link;
+    if (isDriveLink(item.link)) a.href = item.link;
     a.title = item.link;
     const when = item.createdAt ? new Date(item.createdAt).toLocaleString() : '';
     const status = { recording: '● recording', uploading: 'uploading…', done: '', failed: 'upload failed' }[item.status] ?? '';
@@ -175,6 +178,12 @@ $('toggle').addEventListener('click', async () => {
   }
 });
 
+// chrome:// pages can't be linked to directly, but an extension may open them.
+$('shortcut').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  window.close();
+});
+
 $('pause').addEventListener('click', () => send(state.paused ? MSG.RESUME : MSG.PAUSE));
 $('retry').addEventListener('click', () => send(MSG.RETRY_UPLOAD));
 $('download').addEventListener('click', () => send(MSG.DOWNLOAD_LOCAL));
@@ -217,7 +226,12 @@ async function init() {
   state = session[STORAGE.state] ?? { phase: PHASE.idle };
   $('mic').checked = Boolean(local[STORAGE.settings]?.mic);
   const cmd = commands.find((c) => c.name === 'toggle-recording');
-  $('shortcut').textContent = cmd?.shortcut ? `${cmd.shortcut} to record/stop` : '';
+  $('shortcut').textContent = cmd?.shortcut ? `⌨ ${cmd.shortcut}` : '⌨ Set shortcut';
+  $('shortcut').title = cmd?.shortcut
+    ? `${cmd.shortcut} starts/stops recording. Click to change shortcuts.`
+    : 'Click to choose a start/stop keyboard shortcut.';
+  const pauseCmd = commands.find((c) => c.name === 'pause-recording');
+  $('pause').title = pauseCmd?.shortcut ? `Pause / resume (${pauseCmd.shortcut})` : 'Pause / resume';
   renderHistory(local[STORAGE.history]);
   render();
   await refreshStatus();

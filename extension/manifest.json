@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SamySnap – screen recorder to Google Drive",
+  "name": "SamySnap \u2013 screen recorder to Google Drive",
   "short_name": "SamySnap",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Record your screen and get a shareable Google Drive link on your clipboard the instant you stop.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -44,18 +44,21 @@
   "commands": {
     "toggle-recording": {
       "suggested_key": {
-        "default": "Alt+Shift+R",
-        "mac": "Alt+Shift+R"
+        "default": "Ctrl+Shift+9",
+        "mac": "Command+Shift+9"
       },
       "description": "Start / stop recording"
     },
     "pause-recording": {
       "suggested_key": {
-        "default": "Alt+Shift+P",
-        "mac": "Alt+Shift+P"
+        "default": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
       },
       "description": "Pause / resume recording"
     }
   },
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtdGUCNeeWViSxcyy7/kM+V+fxGzYfA/4ZVLb++G3SbQimr1bU1fA5ZvQU6XfJbTEpOdnu8ZLd/N1vIFf08XENvnVMBi2LZrP458qblCZtUyVfH5gC9m0iAjhRGa/k9UDiaEhQ3aBug/51yHWY9eb6klbRNnFXQEQ4f4J9HPZoWj5XPhdaGXXHVIlX9nRa0dkv0bE+nrzWCT0TfmKo1AM/5LJ3PIj/VAgE0Wa2V1+sPjJB7StRNvHcIfh3enc57Ycb5A3oEDXdnOF8xzahxvFIETHwOgOJj4hfj2H0SJhSZca2yvLkMoaiM/H4annQuCeknYNkTWtyI+zoKG+NnlxCQIDAQAB"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtdGUCNeeWViSxcyy7/kM+V+fxGzYfA/4ZVLb++G3SbQimr1bU1fA5ZvQU6XfJbTEpOdnu8ZLd/N1vIFf08XENvnVMBi2LZrP458qblCZtUyVfH5gC9m0iAjhRGa/k9UDiaEhQ3aBug/51yHWY9eb6klbRNnFXQEQ4f4J9HPZoWj5XPhdaGXXHVIlX9nRa0dkv0bE+nrzWCT0TfmKo1AM/5LJ3PIj/VAgE0Wa2V1+sPjJB7StRNvHcIfh3enc57Ycb5A3oEDXdnOF8xzahxvFIETHwOgOJj4hfj2H0SJhSZca2yvLkMoaiM/H4annQuCeknYNkTWtyI+zoKG+NnlxCQIDAQAB",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  }
 }

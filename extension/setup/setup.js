@@ -118,6 +118,7 @@ $('connect').addEventListener('click', async () => {
 // ---------------------------------------------------------------------------
 
 $('next').addEventListener('click', () => show(current + 1));
+$('change-shortcuts').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));
 $('back').addEventListener('click', () => show(current - 1));
 
 $('close').addEventListener('click', async () => {
@@ -150,9 +151,10 @@ async function init() {
   validateField();
 
   const cmd = commands.find((c) => c.name === 'toggle-recording');
+  const pauseCmd = commands.find((c) => c.name === 'pause-recording');
   if (cmd?.shortcut) $('shortcut').textContent = cmd.shortcut;
-  else $('shortcut').parentElement.innerHTML =
-    'Tip: set a start/stop shortcut at <b>chrome://extensions/shortcuts</b>.';
+  else $('shortcut').textContent = 'not set';
+  $('pause-shortcut').textContent = pauseCmd?.shortcut || 'not set';
 
   const forced = new URLSearchParams(location.search).get('step');
   if (forced !== null) show(Number(forced));

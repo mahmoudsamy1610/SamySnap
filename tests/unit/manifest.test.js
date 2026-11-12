@@ -41,9 +41,22 @@ describe('manifest.json', () => {
     for (const h of manifest.host_permissions) assert.match(h, /^https:\/\/(www|oauth2)\.googleapis\.com\/\*$/);
   });
 
-  test('Alt+Shift+R toggles recording, Alt+Shift+P pauses/resumes', () => {
-    assert.equal(manifest.commands['toggle-recording'].suggested_key.default, 'Alt+Shift+R');
-    assert.equal(manifest.commands['pause-recording'].suggested_key.default, 'Alt+Shift+P');
+  test('Ctrl+Shift+9 toggles recording, Ctrl+Shift+8 pauses (Command on Mac)', () => {
+    const rec = manifest.commands['toggle-recording'].suggested_key;
+    const pause = manifest.commands['pause-recording'].suggested_key;
+    assert.deepEqual(rec, { default: 'Ctrl+Shift+9', mac: 'Command+Shift+9' });
+    assert.deepEqual(pause, { default: 'Ctrl+Shift+8', mac: 'Command+Shift+8' });
+  });
+
+  test('shortcuts avoid Alt+Shift (Windows keyboard-language switch) and Chrome built-ins', () => {
+    const builtIns = ['Ctrl+Shift+R', 'Ctrl+Shift+T', 'Ctrl+Shift+N', 'Ctrl+Shift+W', 'Ctrl+Shift+B', 'Ctrl+Shift+I',
+      'Ctrl+Shift+J', 'Ctrl+Shift+C', 'Ctrl+Shift+Delete', 'Ctrl+Shift+Q', 'Ctrl+Shift+A', 'Ctrl+Shift+M', 'Ctrl+Shift+O', 'Ctrl+Shift+V'];
+    const keys = Object.values(manifest.commands).map((c) => c.suggested_key.default);
+    assert.equal(new Set(keys).size, keys.length, 'unique');
+    for (const k of keys) {
+      assert.ok(!k.startsWith('Alt+Shift'), `${k} uses Alt+Shift`);
+      assert.ok(!builtIns.includes(k), `${k} clashes with Chrome`);
+    }
   });
 
   test('all referenced files exist', () => {

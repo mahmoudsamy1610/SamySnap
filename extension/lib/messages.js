@@ -40,6 +40,17 @@ export const TARGET = {
   offscreen: 'offscreen',
 };
 
+/**
+ * Only accept messages from our own extension pages. (No website or other
+ * extension can reach us today – there are no content scripts and no
+ * externally_connectable – this is defence in depth.)
+ */
+export function isFromThisExtension(sender, runtimeId = globalThis.chrome?.runtime?.id) {
+  if (!sender || !runtimeId || sender.id !== runtimeId) return false;
+  // Our pages, offscreen document and service worker all live on our own origin.
+  return !sender.url || sender.url.startsWith(`chrome-extension://${runtimeId}/`);
+}
+
 /** Recording lifecycle phases kept in chrome.storage.session. */
 export const PHASE = {
   idle: 'idle',

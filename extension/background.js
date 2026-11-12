@@ -13,6 +13,7 @@ import { upsertHistory, patchHistory } from './lib/history.js';
 import { defaultAuth, defaultAuthFetch, AuthError, isValidClientId, cleanClientId } from './lib/auth.js';
 import { DriveClient } from './lib/drive.js';
 import { elapsedMs } from './lib/timing.js';
+import { screenshotFileName } from './lib/filename.js';
 
 const ACTIVE_PHASES = new Set([PHASE.starting, PHASE.recording, PHASE.finishing]);
 const NOTIFY_STOP = 'samysnap-stopped';
@@ -215,6 +216,62 @@ async function stopRecording(source) {
   return { ok: true, link: state.link, copied };
 }
 
+// ---------------------------------------------------------------------------
+// Screenshot → clipboard
+// ---------------------------------------------------------------------------
+
+const SHOT_WINDOW = { width: 400, height: 150 };
+
+/**
+ * Capture the visible part of the current tab and put it on the clipboard.
+ * activeTab is granted by Chrome when the user presses our shortcut or clicks
+ * the toolbar icon, so no access to websites is needed otherwise.
+ * The image is copied by a small focused window (shot/shot.html): Chrome only
+ * lets a focused page write images to the clipboard.
+ */
+async function takeScreenshot() {
+  let win;
+  let dataUrl;
+  try {
+    win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    dataUrl = await chrome.tabs.captureVisibleTab(win.id, { format: 'png' });
+  } catch (err) {
+    console.warn('screenshot failed', err);
+    notify('samysnap-shot', 'Can’t screenshot this page',
+      'Chrome doesn’t allow screenshots of some pages (like chrome:// pages or the Web Store). Try on a normal web page.');
+    return { ok: false, error: String(err?.message || err) };
+  }
+  const shot = { dataUrl, fileName: screenshotFileName() };
+  try {
+    await chrome.storage.session.set({ [STORAGE.screenshot]: shot });
+  } catch {
+    // Very large screens can exceed session storage – fall back to JPEG.
+    shot.dataUrl = await chrome.tabs.captureVisibleTab(win.id, { format: 'jpeg', quality: 92 });
+    shot.fileName = shot.fileName.replace(/\.png$/, '.jpg');
+    await chrome.storage.session.set({ [STORAGE.screenshot]: shot });
+  }
+  // Small toast window near the bottom-right of the current window.
+  await chrome.windows.create({
+    url: chrome.runtime.getURL('shot/shot.html'),
+    type: 'popup',
+    focused: true,
+    ...SHOT_WINDOW,
+    left: Math.max(0, Math.round(win.left + win.width - SHOT_WINDOW.width - 24)),
+    top: Math.max(0, Math.round(win.top + win.height - SHOT_WINDOW.height - 24)),
+  });
+  return { ok: true };
+}
+
+function notify(id, title, message) {
+  chrome.notifications.create(id, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+    title,
+    message,
+    priority: 1,
+  });
+}
+
 /** Pause or resume (the recorder window does it and reports back). */
 async function setPaused(paused) {
   const state = await readState();
@@ -358,6 +415,7 @@ const handlers = {
   [MSG.START]: () => startRecording(),
   [MSG.STOP]: () => stopRecording('popup'),
   [MSG.PAUSE]: () => setPaused(true),
+  [MSG.SCREENSHOT]: () => takeScreenshot(),
   [MSG.RESUME]: () => setPaused(false),
   [MSG.RECORDER_STOPPED]: () => stopRecording('recorder'),
   async [MSG.RECORDER_UPDATE](msg) {
@@ -390,6 +448,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'take-screenshot') {
+    await takeScreenshot();
+    return;
+  }
   if (command === 'pause-recording') {
     const s = await readState();
     if (s.phase === PHASE.recording) await setPaused(!s.paused);

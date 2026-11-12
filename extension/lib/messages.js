@@ -8,6 +8,7 @@ export const MSG = {
   START: 'start',
   STOP: 'stop',
   PAUSE: 'pause',
+  SCREENSHOT: 'screenshot',
   RESUME: 'resume',
   RETRY_UPLOAD: 'retry-upload',
   DOWNLOAD_LOCAL: 'download-local',
@@ -32,6 +33,7 @@ export const MSG = {
 
   // background → offscreen
   OFFSCREEN_COPY: 'offscreen-copy',
+  OFFSCREEN_COPY_IMAGE: 'offscreen-copy-image',
 };
 
 export const TARGET = {

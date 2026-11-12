@@ -34,7 +34,7 @@ describe('manifest.json', () => {
   test('permissions are exactly what the design needs', () => {
     assert.deepEqual(
       [...manifest.permissions].sort(),
-      ['clipboardWrite', 'desktopCapture', 'identity', 'notifications', 'offscreen', 'storage'],
+      ['activeTab', 'clipboardWrite', 'desktopCapture', 'identity', 'notifications', 'offscreen', 'storage'],
     );
     assert.ok(!manifest.permissions.includes('tabs'));
     assert.ok(!manifest.permissions.includes('<all_urls>'));
@@ -46,6 +46,11 @@ describe('manifest.json', () => {
     const pause = manifest.commands['pause-recording'].suggested_key;
     assert.deepEqual(rec, { default: 'Ctrl+Shift+9', mac: 'Command+Shift+9' });
     assert.deepEqual(pause, { default: 'Ctrl+Shift+8', mac: 'Command+Shift+8' });
+    assert.deepEqual(manifest.commands['take-screenshot'].suggested_key, { default: 'Ctrl+Shift+7', mac: 'Command+Shift+7' });
+  });
+
+  test('at most 4 shortcuts (Chrome limit for suggested keys)', () => {
+    assert.ok(Object.values(manifest.commands).filter((c) => c.suggested_key).length <= 4);
   });
 
   test('shortcuts avoid Alt+Shift (Windows keyboard-language switch) and Chrome built-ins', () => {

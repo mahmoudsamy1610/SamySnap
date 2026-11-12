@@ -3,6 +3,17 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.3.0 – 2026-11-12
+
+- **Watermark:** turn on "Add watermark" in the popup to burn the SamySnap logo, your own text and an optional live date & time into the video.
+  - You choose the corner.
+  - It's semi-transparent with a soft shadow, so it's readable on any background.
+  - It keeps working while the recorder window is minimized.
+- **Screenshot → clipboard:** press **Ctrl+Shift+7** (⌘⇧7 on Mac) or click the camera button in the popup.
+  - Captures the current tab and copies the image straight to your clipboard. Just paste.
+  - A small "Screenshot copied ✓" preview shows for 2 seconds, with a "Save as file" option.
+- New `activeTab` permission, used only for screenshots. Chrome grants it for the current tab only, and only when you press the shortcut or click the icon.
+
 ## 1.2.1 – 2026-11-12
 
 - **New shortcuts:** **Ctrl+Shift+9** starts and stops recording, and **Ctrl+Shift+8** pauses (⌘⇧9 / ⌘⇧8 on Mac).

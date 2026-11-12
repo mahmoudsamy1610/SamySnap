@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordingFileName, formatDuration, formatBytes } from '../../extension/lib/filename.js';
+import { recordingFileName, screenshotFileName, formatDuration, formatBytes } from '../../extension/lib/filename.js';
 import { upsertHistory, patchHistory } from '../../extension/lib/history.js';
 import { backoffDelay, isRetryableStatus } from '../../extension/lib/retry.js';
 import { driveViewLink, CHUNK_ALIGN } from '../../extension/lib/constants.js';
@@ -9,6 +9,9 @@ describe('filename', () => {
   test('bug-YYYY-MM-DD_HH-mm-ss.webm with zero padding', () => {
     assert.equal(recordingFileName(new Date(2026, 0, 2, 3, 4, 5)), 'bug-2026-01-02_03-04-05.webm');
     assert.equal(recordingFileName(new Date(2026, 11, 31, 23, 59, 59)), 'bug-2026-12-31_23-59-59.webm');
+  });
+  test('screenshot-YYYY-MM-DD_HH-mm-ss.png', () => {
+    assert.equal(screenshotFileName(new Date(2026, 0, 2, 3, 4, 5)), 'screenshot-2026-01-02_03-04-05.png');
   });
   test('formatDuration', () => {
     assert.equal(formatDuration(0), '0:00');

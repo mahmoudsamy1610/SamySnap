@@ -33,6 +33,7 @@ export const STORAGE = {
   connected: 'driveConnected', // local
   clientId: 'googleClientId', // local – pasted in the setup wizard
   setupStep: 'setupStep', // local – where the user is in the setup wizard
+  screenshot: 'pendingScreenshot', // session – handed from the service worker to the screenshot window
   token: 'googleAccessToken', // session – cached {token, expiresAt} (web sign-in only)
   state: 'recState', // session (cleared when the browser restarts)
 };

@@ -1,0 +1,9 @@
+body { overflow: hidden; }
+main { display: flex; gap: 14px; align-items: center; padding: 12px 14px; height: 100vh; box-sizing: border-box; }
+#preview { width: 150px; height: 96px; object-fit: contain; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; flex: none; }
+.info { min-width: 0; }
+.status { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--rec); }
+#hint { margin: 0 0 8px; font-size: 12px; }
+.actions button { padding: 4px 10px; font-size: 12px; }

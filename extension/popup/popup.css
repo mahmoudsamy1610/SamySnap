@@ -29,3 +29,14 @@ button.pause { width: auto; flex: none; padding-left: 14px; padding-right: 14px;
 .paused-indicator { color: #e37400; font-weight: 700; }
 header .kbd { font-size: 11px; color: var(--muted); }
 header .kbd:hover { color: var(--accent); }
+.option + .option { margin-top: -6px; }
+.wm-options { margin: -4px 0 12px 22px; padding: 10px; background: var(--surface); border-radius: 8px; display: grid; gap: 8px; }
+.wm-field { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 8px; }
+.wm-field span { color: var(--muted); font-size: 12px; }
+.wm-field input, .wm-field select {
+  font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text); min-width: 0;
+}
+button.shot { width: auto; flex: none; padding-left: 13px; padding-right: 13px; }
+.cam { width: 16px; height: 12px; display: inline-block; border: 2px solid currentColor; border-radius: 3px; position: relative; box-sizing: border-box; }
+.cam::after { content: ''; position: absolute; width: 5px; height: 5px; border: 2px solid currentColor; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box; }

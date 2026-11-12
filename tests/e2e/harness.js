@@ -9,6 +9,8 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FakeDrive } from '../helpers/fake-drive.js';
+import { cpSync, mkdtempSync, readFileSync as readFile, writeFileSync as writeFile } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -21,6 +23,21 @@ export const hasDisplay = process.platform !== 'linux' || Boolean(process.env.DI
 const NOISE_PAGE = `data:text/html,<body style="margin:0;background:#000"><canvas id=c width=1280 height=720 style="width:100vw;height:100vh"></canvas><script>
 const c=document.getElementById('c').getContext('2d');const img=c.createImageData(1280,720);
 (function f(){const d=img.data;for(let i=0;i<d.length;i+=4){const v=Math.random()*255|0;d[i]=v;d[i+1]=(v*7)&255;d[i+2]=(v*13)&255;d[i+3]=255}c.putImageData(img,0,0);requestAnimationFrame(f)})();</script></body>`;
+
+/**
+ * Copy of the extension with <all_urls> access, ONLY for tests: Playwright
+ * can't press a real Chrome shortcut, which is what grants activeTab. Same key
+ * → same extension ID. The shipped manifest never has this (security tests).
+ */
+function testCopyWithSiteAccess() {
+  const dir = mkdtempSync(join(tmpdir(), 'samysnap-test-'));
+  cpSync(EXT_DIR, dir, { recursive: true });
+  const mp = join(dir, 'manifest.json');
+  const m = JSON.parse(readFile(mp, 'utf8'));
+  m.host_permissions = [...m.host_permissions, '<all_urls>'];
+  writeFile(mp, JSON.stringify(m, null, 2));
+  return dir;
+}
 
 export const TEST_CLIENT_ID = '1234567890-samysnaptest.apps.googleusercontent.com';
 
@@ -48,15 +65,22 @@ function installAuthStub() {
  *   configured=true  → behaves like a user who finished the setup guide and connected.
  *   configured=false → a fresh install (setup guide not done).
  */
-export async function launch({ configured = true, signedIn, autoPick = true, drive = new FakeDrive({ base: 'https://www.googleapis.com' }) } = {}) {
+export async function launch({
+  configured = true,
+  signedIn,
+  autoPick = true,
+  siteAccess = false,
+  drive = new FakeDrive({ base: 'https://www.googleapis.com' }),
+} = {}) {
   if (signedIn !== undefined) configured = signedIn; // backwards-compatible option name
+  const extDir = siteAccess ? testCopyWithSiteAccess() : EXT_DIR;
   const ctx = await chromium.launchPersistentContext('', {
     channel: 'chromium',
     headless: !hasDisplay,
     viewport: null,
     args: [
-      `--disable-extensions-except=${EXT_DIR}`,
-      `--load-extension=${EXT_DIR}`,
+      `--disable-extensions-except=${extDir}`,
+      `--load-extension=${extDir}`,
       ...(autoPick ? ['--auto-select-desktop-capture-source=Entire screen'] : []),
       '--use-fake-ui-for-media-stream',
       '--use-fake-device-for-media-stream',
@@ -64,6 +88,14 @@ export async function launch({ configured = true, signedIn, autoPick = true, dri
   });
 
   await ctx.addInitScript(installAuthStub); // only does something on extension pages
+
+  // A fake website to screenshot / record (no real internet needed).
+  await ctx.route('https://bug.example.test/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<body style="margin:0;background:#1a73e8"><h1 style="color:#fff;font:64px sans-serif;margin:40px">Bug page</h1></body>',
+    }),
+  );
 
   const driveFetch = drive.asFetch();
   await ctx.route('https://www.googleapis.com/**', async (route) => {

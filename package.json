@@ -1,6 +1,6 @@
 {
   "name": "samysnap",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "description": "Chrome extension: record your screen, stream it to Google Drive, get the link instantly.",
   "type": "module",

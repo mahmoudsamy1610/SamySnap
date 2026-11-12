@@ -22,7 +22,7 @@ Two design risks are accepted on purpose (see below).
 | Secrets in the code **and the full git history** (private keys, Google client secrets `GOCSPX-`, access tokens `ya29.`, API keys, GitHub tokens) | ✅ None. The only `GOCSPX-` hits are fake strings in tests. The extension private key (`.keys/`) is git-ignored and was never committed. |
 | Dependencies / supply chain | ✅ None at runtime. No npm packages are shipped; the extension is plain JS with no build step. |
 | Remote code (MV3 rule) | ✅ No `eval`, no `new Function`, no remote scripts. Enforced by tests. |
-| Permissions (least privilege) | ✅ `identity, desktopCapture, offscreen, clipboardWrite, storage, notifications`. Hosts: only `www.googleapis.com` and `oauth2.googleapis.com`. No `tabs`, `<all_urls>` or `scripting`. |
+| Permissions (least privilege) | ✅ `activeTab, identity, desktopCapture, offscreen, clipboardWrite, storage, notifications`. `activeTab` (added in 1.3.0 for screenshots) gives access only to the **current** tab, only when you press the shortcut or click the icon, and only until you navigate away. Hosts: only `www.googleapis.com` and `oauth2.googleapis.com`. No `tabs`, `<all_urls>` or `scripting`. |
 | OAuth scope | ✅ Only `drive.file`: SamySnap can see **only the files it created**, never the rest of your Drive. |
 | HTML injection (XSS) | ✅ All text is set with `textContent`. Since 1.2.1 there's no `innerHTML` anywhere. Enforced by tests. |
 | Token storage | ✅ Access tokens live in `chrome.storage.session`: in memory only, readable only by SamySnap's own pages, wiped when the browser closes, valid for about 1 hour. They're never logged (enforced by tests). |

@@ -5,6 +5,7 @@ import { STORAGE, isDriveLink } from '../lib/constants.js';
 import { MSG, PHASE, TARGET } from '../lib/messages.js';
 import { formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
+import { normalizeWatermark } from '../lib/watermark.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,13 +43,16 @@ function render() {
 
   const recording = s.phase === PHASE.recording;
   const paused = recording && Boolean(s.paused);
+  const starting = s.phase === PHASE.starting;
+  const finishing = s.phase === PHASE.finishing;
+
+  // Screenshot button: hidden while recording (the Pause button takes its place).
+  $('screenshot').hidden = recording || starting;
 
   // Pause / resume button (only while recording).
   $('pause').hidden = !recording;
   $('pause').querySelector('span').className = paused ? 'play' : 'bars';
   $('pause-label').textContent = paused ? 'Resume' : 'Pause';
-  const starting = s.phase === PHASE.starting;
-  const finishing = s.phase === PHASE.finishing;
 
   toggle.classList.toggle('record', !recording && !starting);
   toggle.classList.toggle('stop', recording || starting);
@@ -178,6 +182,13 @@ $('toggle').addEventListener('click', async () => {
   }
 });
 
+$('screenshot').addEventListener('click', async () => {
+  // Clicking the toolbar icon granted activeTab; close the popup so it isn't in the way.
+  const res = send(MSG.SCREENSHOT);
+  window.close();
+  await res;
+});
+
 // chrome:// pages can't be linked to directly, but an extension may open them.
 $('shortcut').addEventListener('click', () => {
   chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
@@ -198,10 +209,49 @@ $('open-setup').addEventListener('click', openSetup);
 $('connect-setup').addEventListener('click', openSetup);
 $('footer-setup').addEventListener('click', openSetup);
 
-$('mic').addEventListener('change', async (e) => {
+/** Merge a patch into the saved settings. */
+async function saveSettings(patch) {
   const settings = (await chrome.storage.local.get(STORAGE.settings))[STORAGE.settings] ?? {};
-  await chrome.storage.local.set({ [STORAGE.settings]: { ...settings, mic: e.target.checked } });
+  await chrome.storage.local.set({ [STORAGE.settings]: { ...settings, ...patch } });
+}
+
+$('mic').addEventListener('change', (e) => saveSettings({ mic: e.target.checked }));
+
+// --- Watermark settings -----------------------------------------------------
+
+function renderWatermark(wm) {
+  $('wm-enabled').checked = wm.enabled;
+  $('wm-options').hidden = !wm.enabled;
+  $('wm-text').value = wm.text;
+  $('wm-position').value = wm.position;
+  $('wm-timestamp').checked = wm.timestamp;
+}
+
+function readWatermarkForm() {
+  return normalizeWatermark({
+    enabled: $('wm-enabled').checked,
+    text: $('wm-text').value,
+    position: $('wm-position').value,
+    timestamp: $('wm-timestamp').checked,
+  });
+}
+
+let wmSaveTimer = null;
+function saveWatermark({ debounce = false } = {}) {
+  clearTimeout(wmSaveTimer);
+  const run = () => saveSettings({ watermark: readWatermarkForm() });
+  if (debounce) wmSaveTimer = setTimeout(run, 300);
+  else run();
+}
+
+$('wm-enabled').addEventListener('change', () => {
+  $('wm-options').hidden = !$('wm-enabled').checked;
+  saveWatermark();
 });
+$('wm-text').addEventListener('input', () => saveWatermark({ debounce: true }));
+$('wm-text').addEventListener('change', () => saveWatermark());
+$('wm-position').addEventListener('change', () => saveWatermark());
+$('wm-timestamp').addEventListener('change', () => saveWatermark());
 
 // ---------------------------------------------------------------------------
 // Init + live updates
@@ -225,11 +275,14 @@ async function init() {
   ]);
   state = session[STORAGE.state] ?? { phase: PHASE.idle };
   $('mic').checked = Boolean(local[STORAGE.settings]?.mic);
+  renderWatermark(normalizeWatermark(local[STORAGE.settings]?.watermark));
   const cmd = commands.find((c) => c.name === 'toggle-recording');
   $('shortcut').textContent = cmd?.shortcut ? `⌨ ${cmd.shortcut}` : '⌨ Set shortcut';
   $('shortcut').title = cmd?.shortcut
     ? `${cmd.shortcut} starts/stops recording. Click to change shortcuts.`
     : 'Click to choose a start/stop keyboard shortcut.';
+  const shotCmd = commands.find((c) => c.name === 'take-screenshot');
+  $('screenshot').title = `Screenshot of this tab → clipboard${shotCmd?.shortcut ? ` (${shotCmd.shortcut})` : ''}`;
   const pauseCmd = commands.find((c) => c.name === 'pause-recording');
   $('pause').title = pauseCmd?.shortcut ? `Pause / resume (${pauseCmd.shortcut})` : 'Pause / resume';
   renderHistory(local[STORAGE.history]);

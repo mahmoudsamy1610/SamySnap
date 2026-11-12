@@ -49,6 +49,10 @@ describe('manifest attack surface', () => {
     assert.equal(manifest.web_accessible_resources, undefined);
     assert.equal(manifest.externally_connectable, undefined);
   });
+  test('activeTab only (no standing site access): granted per tab when the user presses a shortcut / clicks the icon', () => {
+    assert.ok(manifest.permissions.includes('activeTab'));
+    assert.ok(!JSON.stringify(manifest).includes('<all_urls>'));
+  });
   test('no access to websites (only Google APIs)', () => {
     assert.ok(!manifest.permissions.some((p) => /tabs|<all_urls>|webRequest|scripting|history|cookies/.test(p)));
     assert.ok(manifest.host_permissions.every((h) => /^https:\/\/(www|oauth2)\.googleapis\.com\/\*$/.test(h)));

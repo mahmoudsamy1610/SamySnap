@@ -12,6 +12,11 @@ export function recordingFileName(date = new Date()) {
   return `bug-${d}_${t}.webm`;
 }
 
+/** screenshot-YYYY-MM-DD_HH-mm-ss.png (local time). */
+export function screenshotFileName(date = new Date()) {
+  return recordingFileName(date).replace(/^bug-/, 'screenshot-').replace(/\.webm$/, '.png');
+}
+
 /** Format milliseconds as m:ss or h:mm:ss for the recording timer. */
 export function formatDuration(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));

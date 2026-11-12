@@ -17,6 +17,7 @@ import { DriveClient } from '../lib/drive.js';
 import { ResumableUploader } from '../lib/uploader.js';
 import { recordingFileName, formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
+import { normalizeWatermark, canWatermark, watermarkTrack, loadLogo } from '../lib/watermark.js';
 import {
   pickMimeType,
   recorderOptions,
@@ -51,6 +52,8 @@ const rec = {
   display: null,
   mic: null,
   cleanupAudio: () => {},
+  settings: {},
+  watermark: null, // { track, stop } when a watermark is burned in
   mediaRecorder: null,
   uploader: null,
   chunks: [], // full copy of the recording, kept until Drive confirms the upload
@@ -128,6 +131,10 @@ async function getSettings() {
 async function start() {
   setStatus('Preparing Google Drive…');
   const settings = await getSettings();
+  rec.settings = settings;
+  const wm = normalizeWatermark(settings.watermark);
+  // Load the logo while the user is in the picker (only if needed).
+  const logoPromise = wm.enabled ? loadLogo(chrome.runtime.getURL('icons/icon128.png')) : Promise.resolve();
 
   // Drive preparation (file → share + session) runs WHILE the picker is open.
   // MediaRecorder only starts once both are ready, so the order required by
@@ -162,11 +169,28 @@ async function start() {
   }
   if (rec.cancelled) return cancel(Promise.resolve(rec.prep));
 
-  beginRecording();
+  beginRecording({ watermark: wm, logo: await logoPromise });
 }
 
-function beginRecording() {
-  const { stream, cleanup } = combineStreams(rec.display, rec.mic);
+/** Video source for the recorder: the screen, with the watermark burned in if enabled. */
+function videoSource({ watermark, logo }) {
+  if (!watermark?.enabled) return rec.display;
+  if (!canWatermark()) {
+    showWarning('This Chrome version can’t add a watermark; recording without it.');
+    return rec.display;
+  }
+  try {
+    rec.watermark = watermarkTrack(rec.display.getVideoTracks()[0], watermark, { logo });
+    return new MediaStream([rec.watermark.track, ...rec.display.getAudioTracks()]);
+  } catch (err) {
+    console.warn('watermark failed', err);
+    showWarning('The watermark could not be added; recording without it.');
+    return rec.display;
+  }
+}
+
+function beginRecording(opts = {}) {
+  const { stream, cleanup } = combineStreams(videoSource(opts), rec.mic);
   rec.cleanupAudio = cleanup;
 
   rec.uploader = new ResumableUploader({
@@ -213,6 +237,7 @@ function beginRecording() {
     link: rec.prep.link,
     shared: rec.prep.shared,
     warning: rec.prep.shareWarning || ui.warning.textContent || null,
+    watermark: Boolean(rec.watermark),
     mimeType: rec.mimeType,
     uploadedBytes: 0,
     totalBytes: 0,
@@ -317,6 +342,7 @@ function stop(source) {
   setStatus('Finishing upload…');
   if (rec.mediaRecorder.state !== 'inactive') rec.mediaRecorder.stop(); // emits last dataavailable, then onstop
   stopStreams(rec.display, rec.mic);
+  rec.watermark?.stop();
   rec.cleanupAudio();
 }
 

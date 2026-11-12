@@ -126,12 +126,37 @@ async function startRecording() {
   const win = await chrome.windows.create({
     url: chrome.runtime.getURL('recorder/recorder.html'),
     type: 'popup',
-    width: 480,
-    height: 360,
     focused: true,
+    ...(await pickerWindowBounds()),
   });
   await updateState(() => ({ phase: PHASE.starting, windowId: win.id, startedAt: null }));
   return { ok: true };
+}
+
+/**
+ * Chrome's screen picker is a dialog INSIDE the recorder window, so it can
+ * never be bigger than that window. Open the window large (centered over the
+ * Chrome window the user is in) while picking; the recorder shrinks and
+ * minimizes it once recording starts.
+ */
+const PICKER_WINDOW = { width: 1000, height: 760 };
+
+async function pickerWindowBounds() {
+  const { width, height } = PICKER_WINDOW;
+  try {
+    const ref = await chrome.windows.getLastFocused();
+    if (ref?.width && ref?.height) {
+      return {
+        width,
+        height,
+        left: Math.round(ref.left + (ref.width - width) / 2),
+        top: Math.max(0, Math.round(ref.top + (ref.height - height) / 2)),
+      };
+    }
+  } catch {
+    /* no reference window – let Chrome place it */
+  }
+  return { width, height };
 }
 
 /**

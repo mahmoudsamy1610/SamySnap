@@ -39,11 +39,12 @@ function installAuthStub() {
 }
 
 /**
- * @param {{configured?: boolean, drive?: FakeDrive}} [opts]
+ * @param {{configured?: boolean, autoPick?: boolean, drive?: FakeDrive}} [opts]
+ *   autoPick=false → Chrome's real screen picker stays open (for visual checks).
  *   configured=true  → behaves like a user who finished the setup guide and connected.
  *   configured=false → a fresh install (setup guide not done).
  */
-export async function launch({ configured = true, signedIn, drive = new FakeDrive({ base: 'https://www.googleapis.com' }) } = {}) {
+export async function launch({ configured = true, signedIn, autoPick = true, drive = new FakeDrive({ base: 'https://www.googleapis.com' }) } = {}) {
   if (signedIn !== undefined) configured = signedIn; // backwards-compatible option name
   const ctx = await chromium.launchPersistentContext('', {
     channel: 'chromium',
@@ -52,10 +53,9 @@ export async function launch({ configured = true, signedIn, drive = new FakeDriv
     args: [
       `--disable-extensions-except=${EXT_DIR}`,
       `--load-extension=${EXT_DIR}`,
-      '--auto-select-desktop-capture-source=Entire screen',
+      ...(autoPick ? ['--auto-select-desktop-capture-source=Entire screen'] : []),
       '--use-fake-ui-for-media-stream',
       '--use-fake-device-for-media-stream',
-      '--window-size=1280,800',
     ],
   });
 

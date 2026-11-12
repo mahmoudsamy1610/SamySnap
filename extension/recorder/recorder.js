@@ -214,8 +214,35 @@ function beginRecording() {
     stopHandled: false,
   });
 
-  // Get out of the way: the recording keeps going while minimized.
-  chrome.windows.getCurrent().then((w) => chrome.windows.update(w.id, { state: 'minimized' })).catch(() => {});
+  // Get out of the way: back to the small size (the window was large for the
+  // picker), then minimize. The recording keeps going while minimized.
+  shrinkWindow({ minimize: true });
+}
+
+/** Small status-window size used after the picker is done. */
+const SMALL_WINDOW = { width: 480, height: 360 };
+
+/** Resize this window back to its small size, then minimize or focus it. */
+async function shrinkWindow({ minimize = false, focus = false } = {}) {
+  try {
+    const w = await chrome.windows.getCurrent();
+    await chrome.windows.update(w.id, {
+      state: 'normal',
+      ...SMALL_WINDOW,
+      // keep it roughly where the big window was centered
+      left: Math.round(w.left + (w.width - SMALL_WINDOW.width) / 2),
+      top: Math.round(w.top + (w.height - SMALL_WINDOW.height) / 2),
+    });
+    if (minimize) {
+      // Give the window system a moment to apply the resize, or some
+      // platforms drop the minimize request.
+      await new Promise((r) => setTimeout(r, 250));
+      await chrome.windows.update(w.id, { state: 'minimized' });
+    }
+    else if (focus) await chrome.windows.update(w.id, { focused: true });
+  } catch {
+    /* window already gone */
+  }
 }
 
 function startTimer() {
@@ -323,7 +350,7 @@ function onFinalFailure(err) {
   ui.retry.hidden = false;
   ui.download.hidden = false;
   report({ phase: PHASE.error, error: err.message, canRetry: true, canDownload: true });
-  chrome.windows.getCurrent().then((w) => chrome.windows.update(w.id, { state: 'normal', focused: true })).catch(() => {});
+  shrinkWindow({ focus: true });
 }
 
 async function retryUpload() {
@@ -372,6 +399,7 @@ async function cancel(prepPromise) {
 }
 
 async function fail(message, prepPromise) {
+  shrinkWindow({ focus: true });
   setStatus('Could not start');
   showError(message);
   ui.stop.hidden = true;

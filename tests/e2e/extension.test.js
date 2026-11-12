@@ -133,6 +133,30 @@ describe('recording → Drive', needsDisplay, () => {
     assert.equal(h.recorderPage(), undefined, 'recorder window closed');
   });
 
+  test('screen picker opens in a LARGE window (not squeezed); window shrinks + minimizes once recording', async () => {
+    // Real picker (no auto-select): the window must be big while choosing.
+    const h = await start({ autoPick: false });
+    await h.send('start');
+    const s = await h.waitState((x) => x.phase === 'starting' && x.windowId, { label: 'starting' });
+    await sleep(800);
+    const w = await h.sw.evaluate((id) => chrome.windows.get(id), s.windowId);
+    assert.ok(w.width >= 1000 && w.height >= 760, `picker window ${w.width}x${w.height}`);
+    await h.close();
+    open.pop();
+
+    // Auto-picked: after recording starts it goes small and minimized.
+    const h2 = await start();
+    const r = await startRecording(h2);
+    await sleep(1500);
+    const w2 = await h2.sw.evaluate((id) => chrome.windows.get(id), r.windowId);
+    // Minimizing needs a window manager (absent under bare xvfb), so accept
+    // "minimized" OR "shrunk back to the small 480x360 status window".
+    assert.ok(
+      w2.state === 'minimized' || (w2.width <= 500 && w2.height <= 400),
+      `after start: ${w2.state} ${w2.width}x${w2.height}`,
+    );
+  });
+
   test('Chrome "Stop sharing" bar (video track ended) behaves exactly like Stop', async () => {
     const h = await start();
     const s = await startRecording(h);

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-wordmark-dark.svg">
+    <img src="docs/brand/logo-wordmark.svg" alt="SamySnap" width="360">
+  </picture>
+</p>
+
 # SamySnap
 
 A Chrome extension (Manifest V3) that records your **whole screen**, a window or a tab, and streams the video into **your Google Drive while you record**.
@@ -86,6 +93,13 @@ npm test             # unit + integration tests (no dependencies)
 npm run test:e2e     # real Chromium end-to-end tests (Playwright, xvfb on Linux)
 npm run extension-id # print the extension ID from manifest "key"
 node scripts/screenshots.mjs   # regenerate docs/screenshots (needs a display)
+npm run logo                   # rebuild the logo + all icon sizes from scripts/build-logo.mjs
 ```
 
 The code is plain JavaScript ES modules with no build step and no runtime libraries.
+
+## Logo
+
+The logo is screen-capture corners around a record button, on a warm red gradient. The masters live in `docs/brand/` (SVG, 512 px PNG and the wordmark), and `scripts/build-logo.mjs` generates every icon size. The 16 and 32 px icons use a simplified mark so the toolbar icon stays sharp.
+
+![](docs/brand/preview.png)

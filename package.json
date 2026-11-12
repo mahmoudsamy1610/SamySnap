@@ -12,7 +12,7 @@
     "test:all": "npm test && npm run test:e2e",
     "key": "node scripts/generate-key.mjs",
     "extension-id": "node scripts/generate-key.mjs --print",
-    "icons": "python3 scripts/make-icons.py"
+    "logo": "node scripts/build-logo.mjs"
   },
   "engines": {
     "node": ">=20"

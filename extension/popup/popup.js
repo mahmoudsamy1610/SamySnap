@@ -1,0 +1,209 @@
+// Popup UI. It holds no recording logic: it renders the shared state from
+// chrome.storage (written by the service worker) and sends commands.
+
+import { STORAGE } from '../lib/constants.js';
+import { MSG, PHASE, TARGET } from '../lib/messages.js';
+import { formatDuration, formatBytes } from '../lib/filename.js';
+
+const $ = (id) => document.getElementById(id);
+
+let state = { phase: PHASE.idle };
+let timerInterval = null;
+
+const send = (type, extra = {}) => chrome.runtime.sendMessage({ target: TARGET.background, type, ...extra });
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+function renderConnected(connected) {
+  $('connect-view').hidden = connected;
+  $('main-view').hidden = !connected;
+}
+
+function render() {
+  const s = state;
+  const toggle = $('toggle');
+  const label = $('toggle-label');
+  const icon = toggle.querySelector('span');
+
+  const recording = s.phase === PHASE.recording;
+  const starting = s.phase === PHASE.starting;
+  const finishing = s.phase === PHASE.finishing;
+
+  toggle.classList.toggle('record', !recording && !starting);
+  toggle.classList.toggle('stop', recording || starting);
+  icon.className = recording || starting ? 'square' : 'dot';
+  label.textContent = recording ? 'Stop & copy link' : starting ? 'Cancel' : 'Record';
+  toggle.disabled = finishing;
+
+  // Live line: timer + phase.
+  $('live').hidden = !(recording || finishing || s.phase === PHASE.done);
+  $('phase-label').innerHTML = recording
+    ? '<span class="dot rec-indicator"></span> Recording'
+    : finishing
+      ? 'Uploading…'
+      : s.phase === PHASE.done
+        ? '✓ Done'
+        : '';
+  updateTimer();
+  clearInterval(timerInterval);
+  if (recording) timerInterval = setInterval(updateTimer, 500);
+
+  // Upload status line.
+  const up = $('upload-status');
+  if (recording || finishing || s.phase === PHASE.done) {
+    up.hidden = false;
+    const sizes = s.totalBytes ? ` (${formatBytes(s.uploadedBytes)} / ${formatBytes(s.totalBytes)})` : '';
+    up.textContent =
+      s.phase === PHASE.done
+        ? `Upload complete${s.copied === false ? '' : ' – link is on your clipboard'}.`
+        : `Uploading…${sizes}`;
+  } else if (starting) {
+    up.hidden = false;
+    up.textContent = 'Choose a screen, window or tab in the picker…';
+  } else {
+    up.hidden = true;
+  }
+
+  // Warning + error.
+  $('warning').hidden = !s.warning;
+  $('warning').textContent = s.warning ? `⚠ ${s.warning}` : '';
+  $('error-box').hidden = s.phase !== PHASE.error;
+  $('error').textContent = s.error || '';
+  $('retry').hidden = !s.canRetry;
+  $('download').hidden = !s.canDownload;
+}
+
+function updateTimer() {
+  const s = state;
+  if (!s.startedAt) {
+    $('timer').textContent = '';
+    return;
+  }
+  const end = s.phase === PHASE.recording ? Date.now() : s.stoppedAt || Date.now();
+  $('timer').textContent = formatDuration(end - s.startedAt);
+}
+
+function renderHistory(list = []) {
+  const ul = $('history');
+  ul.replaceChildren();
+  $('history-empty').hidden = list.length > 0;
+  const tpl = $('history-item');
+  for (const item of list) {
+    const li = tpl.content.firstElementChild.cloneNode(true);
+    const a = li.querySelector('.name');
+    a.textContent = item.name || item.link;
+    a.href = item.link;
+    a.title = item.link;
+    const when = item.createdAt ? new Date(item.createdAt).toLocaleString() : '';
+    const status = { recording: '● recording', uploading: 'uploading…', done: '', failed: 'upload failed' }[item.status] ?? '';
+    li.querySelector('.sub').textContent = [when, status, item.shared === false ? 'private' : ''].filter(Boolean).join(' · ');
+    li.querySelector('.copy').addEventListener('click', (e) => copyLink(item.link, e.currentTarget));
+    ul.appendChild(li);
+  }
+}
+
+async function copyLink(link, button) {
+  try {
+    await navigator.clipboard.writeText(link);
+    if (button) {
+      button.textContent = 'Copied ✓';
+      setTimeout(() => (button.textContent = 'Copy'), 1200);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function showConnectError(msg) {
+  const view = $('connect-view');
+  let p = view.querySelector('.notice');
+  if (!p) {
+    p = document.createElement('p');
+    p.className = 'notice err';
+    view.appendChild(p);
+  }
+  p.textContent = msg;
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+$('connect').addEventListener('click', async () => {
+  $('connect').disabled = true;
+  $('connect').textContent = 'Connecting…';
+  const res = await send(MSG.CONNECT);
+  $('connect').disabled = false;
+  $('connect').textContent = 'Connect Google Drive';
+  if (res?.ok) renderConnected(true);
+  else showConnectError(res?.error || 'Could not connect.');
+});
+
+$('toggle').addEventListener('click', async () => {
+  if (state.phase === PHASE.recording) {
+    // The popup is focused here, so copy directly too (belt and braces –
+    // the service worker also copies via the offscreen document).
+    if (state.link) copyLink(state.link);
+    await send(MSG.STOP);
+  } else if (state.phase === PHASE.starting) {
+    await send(MSG.STOP);
+  } else {
+    const res = await send(MSG.START);
+    if (res?.ok) window.close(); // get out of the way of the picker
+  }
+});
+
+$('retry').addEventListener('click', () => send(MSG.RETRY_UPLOAD));
+$('download').addEventListener('click', () => send(MSG.DOWNLOAD_LOCAL));
+$('dismiss').addEventListener('click', () => send(MSG.RESET));
+
+$('disconnect').addEventListener('click', async () => {
+  await send(MSG.DISCONNECT);
+  renderConnected(false);
+});
+
+$('mic').addEventListener('change', async (e) => {
+  const settings = (await chrome.storage.local.get(STORAGE.settings))[STORAGE.settings] ?? {};
+  await chrome.storage.local.set({ [STORAGE.settings]: { ...settings, mic: e.target.checked } });
+});
+
+// ---------------------------------------------------------------------------
+// Init + live updates
+// ---------------------------------------------------------------------------
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'session' && changes[STORAGE.state]) {
+    state = changes[STORAGE.state].newValue ?? { phase: PHASE.idle };
+    render();
+  }
+  if (area === 'local' && changes[STORAGE.history]) renderHistory(changes[STORAGE.history].newValue);
+  if (area === 'local' && changes[STORAGE.connected]) renderConnected(Boolean(changes[STORAGE.connected].newValue));
+});
+
+async function isConnected() {
+  try {
+    const r = await chrome.identity.getAuthToken({ interactive: false });
+    return Boolean(typeof r === 'string' ? r : r?.token);
+  } catch {
+    return false;
+  }
+}
+
+async function init() {
+  const [session, local, commands] = await Promise.all([
+    chrome.storage.session.get(STORAGE.state),
+    chrome.storage.local.get([STORAGE.history, STORAGE.settings]),
+    chrome.commands.getAll(),
+  ]);
+  state = session[STORAGE.state] ?? { phase: PHASE.idle };
+  $('mic').checked = Boolean(local[STORAGE.settings]?.mic);
+  const cmd = commands.find((c) => c.name === 'toggle-recording');
+  $('shortcut').textContent = cmd?.shortcut ? `${cmd.shortcut} to record/stop` : '';
+  renderHistory(local[STORAGE.history]);
+  render();
+  renderConnected(await isConnected());
+}
+
+init();

@@ -1,0 +1,6 @@
+node_modules/
+.keys/
+*.pem
+test-results/
+dist/
+.DS_Store

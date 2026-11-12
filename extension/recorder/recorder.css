@@ -1,0 +1,4 @@
+main { padding: 16px 18px; }
+.status { font-size: 15px; font-weight: 600; }
+.linkline { word-break: break-all; min-height: 1.4em; }
+.actions { margin-top: 12px; }

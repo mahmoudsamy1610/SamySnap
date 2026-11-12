@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "SamySnap – screen recorder to Google Drive",
+  "short_name": "SamySnap",
+  "version": "1.0.0",
+  "description": "Record your screen and get a shareable Google Drive link on your clipboard the instant you stop.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "SamySnap",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "identity",
+    "desktopCapture",
+    "offscreen",
+    "clipboardWrite",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://oauth2.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.file"
+    ]
+  },
+  "commands": {
+    "toggle-recording": {
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
+      "description": "Start / stop recording"
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtdGUCNeeWViSxcyy7/kM+V+fxGzYfA/4ZVLb++G3SbQimr1bU1fA5ZvQU6XfJbTEpOdnu8ZLd/N1vIFf08XENvnVMBi2LZrP458qblCZtUyVfH5gC9m0iAjhRGa/k9UDiaEhQ3aBug/51yHWY9eb6klbRNnFXQEQ4f4J9HPZoWj5XPhdaGXXHVIlX9nRa0dkv0bE+nrzWCT0TfmKo1AM/5LJ3PIj/VAgE0Wa2V1+sPjJB7StRNvHcIfh3enc57Ycb5A3oEDXdnOF8xzahxvFIETHwOgOJj4hfj2H0SJhSZca2yvLkMoaiM/H4annQuCeknYNkTWtyI+zoKG+NnlxCQIDAQAB"
+}

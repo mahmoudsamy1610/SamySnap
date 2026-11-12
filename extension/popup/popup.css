@@ -1,0 +1,19 @@
+body { width: 340px; padding: 14px; }
+header { margin-bottom: 12px; }
+.kbd { font-size: 11px; }
+.live { margin-top: 10px; }
+#phase-label { font-weight: 600; gap: 6px; }
+#upload-status { margin: 4px 0 0; }
+.option { margin: 12px 0; cursor: pointer; }
+.actions { margin-top: 8px; flex-wrap: wrap; }
+.actions button { padding: 4px 10px; }
+.history ul { list-style: none; margin: 0; padding: 0; }
+.history li { padding: 6px 0; border-top: 1px solid var(--border); gap: 8px; }
+.history li:first-child { border-top: none; }
+.history .meta { min-width: 0; display: flex; flex-direction: column; }
+.history .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.history .sub { font-size: 11px; }
+.history .copy { flex: none; padding: 3px 10px; }
+footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 11px; }
+#error-box { white-space: normal; }
+#error { white-space: pre-wrap; }

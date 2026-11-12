@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SamySnap recorder</title>
+    <link rel="stylesheet" href="../ui.css" />
+    <link rel="stylesheet" href="recorder.css" />
+  </head>
+  <body>
+    <main>
+      <h1><img src="../icons/icon32.png" alt="" /> SamySnap recorder</h1>
+      <p class="muted">Keep this window open (it can stay minimized) until the upload is done.</p>
+
+      <div class="row spread">
+        <span id="status" class="status">Starting…</span>
+        <span id="timer" class="timer">0:00</span>
+      </div>
+      <p id="progress" class="muted"></p>
+      <p class="linkline"><a id="link" target="_blank" rel="noopener"></a></p>
+
+      <p id="warning" class="notice warn" hidden></p>
+      <p id="error" class="notice err" hidden></p>
+
+      <div class="row actions">
+        <button id="stop" class="stop" disabled>Waiting…</button>
+        <button id="retry" class="primary" hidden>Retry upload</button>
+        <button id="download" hidden>Download video</button>
+      </div>
+    </main>
+    <script type="module" src="recorder.js"></script>
+  </body>
+</html>

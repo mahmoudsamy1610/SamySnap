@@ -6,6 +6,9 @@ import {
   layoutWatermark,
   drawWatermark,
   canWatermark,
+  canWatermarkInsertable,
+  canWatermarkCanvas,
+  createWatermarkedTrack,
   POSITIONS,
   WATERMARK_DEFAULTS,
 } from '../../extension/lib/watermark.js';
@@ -88,8 +91,23 @@ describe('drawWatermark', () => {
   });
 });
 
-test('canWatermark feature detection', () => {
-  assert.equal(canWatermark({}), false);
-  const ok = { MediaStreamTrackProcessor: 1, MediaStreamTrackGenerator: 1, VideoFrame: 1, OffscreenCanvas: 1 };
-  assert.equal(canWatermark(ok), true);
+describe('feature detection', () => {
+  const insertable = { MediaStreamTrackProcessor: 1, MediaStreamTrackGenerator: 1, VideoFrame: 1, OffscreenCanvas: 1 };
+  const canvas = { HTMLCanvasElement: { prototype: { captureStream() {} } }, Worker: function () {} };
+  test('insertable streams', () => {
+    assert.equal(canWatermarkInsertable(insertable), true);
+    assert.equal(canWatermarkInsertable({ ...insertable, MediaStreamTrackGenerator: undefined }), false);
+  });
+  test('canvas fallback', () => {
+    assert.equal(canWatermarkCanvas(canvas), true);
+    assert.equal(canWatermarkCanvas({}), false);
+  });
+  test('either method is enough', () => {
+    assert.equal(canWatermark({}), false);
+    assert.equal(canWatermark(insertable), true);
+    assert.equal(canWatermark(canvas), true);
+  });
+  test('createWatermarkedTrack: clear error when neither method exists', async () => {
+    await assert.rejects(createWatermarkedTrack({}, {}, { env: {} }), /can’t process video frames/);
+  });
 });

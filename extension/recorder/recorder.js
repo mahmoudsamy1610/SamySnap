@@ -17,7 +17,7 @@ import { DriveClient } from '../lib/drive.js';
 import { ResumableUploader } from '../lib/uploader.js';
 import { recordingFileName, formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
-import { normalizeWatermark, canWatermark, watermarkTrack, loadLogo } from '../lib/watermark.js';
+import { normalizeWatermark, createWatermarkedTrack, loadLogo } from '../lib/watermark.js';
 import {
   pickMimeType,
   recorderOptions,
@@ -169,28 +169,28 @@ async function start() {
   }
   if (rec.cancelled) return cancel(Promise.resolve(rec.prep));
 
-  beginRecording({ watermark: wm, logo: await logoPromise });
+  await beginRecording({ watermark: wm, logo: await logoPromise });
 }
 
 /** Video source for the recorder: the screen, with the watermark burned in if enabled. */
-function videoSource({ watermark, logo }) {
+async function videoSource({ watermark, logo }) {
   if (!watermark?.enabled) return rec.display;
-  if (!canWatermark()) {
-    showWarning('This Chrome version can’t add a watermark; recording without it.');
-    return rec.display;
-  }
   try {
-    rec.watermark = watermarkTrack(rec.display.getVideoTracks()[0], watermark, { logo });
+    rec.watermark = await createWatermarkedTrack(rec.display.getVideoTracks()[0], watermark, {
+      logo,
+      tickerUrl: chrome.runtime.getURL('lib/ticker-worker.js'),
+    });
     return new MediaStream([rec.watermark.track, ...rec.display.getAudioTracks()]);
   } catch (err) {
     console.warn('watermark failed', err);
-    showWarning('The watermark could not be added; recording without it.');
+    rec.watermarkError = `The watermark could not be added (${err?.message || err}). Recording without it.`;
+    showWarning(rec.watermarkError);
     return rec.display;
   }
 }
 
-function beginRecording(opts = {}) {
-  const { stream, cleanup } = combineStreams(videoSource(opts), rec.mic);
+async function beginRecording(opts = {}) {
+  const { stream, cleanup } = combineStreams(await videoSource(opts), rec.mic);
   rec.cleanupAudio = cleanup;
 
   rec.uploader = new ResumableUploader({
@@ -238,6 +238,8 @@ function beginRecording(opts = {}) {
     shared: rec.prep.shared,
     warning: rec.prep.shareWarning || ui.warning.textContent || null,
     watermark: Boolean(rec.watermark),
+    watermarkMethod: rec.watermark?.method ?? null,
+    watermarkError: rec.watermarkError ?? null,
     mimeType: rec.mimeType,
     uploadedBytes: 0,
     totalBytes: 0,

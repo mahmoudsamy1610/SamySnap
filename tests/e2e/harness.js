@@ -70,6 +70,7 @@ export async function launch({
   signedIn,
   autoPick = true,
   siteAccess = false,
+  noInsertableStreams = false,
   drive = new FakeDrive({ base: 'https://www.googleapis.com' }),
 } = {}) {
   if (signedIn !== undefined) configured = signedIn; // backwards-compatible option name
@@ -88,6 +89,12 @@ export async function launch({
   });
 
   await ctx.addInitScript(installAuthStub); // only does something on extension pages
+  if (noInsertableStreams) {
+    // Simulate a Chrome without MediaStreamTrackGenerator on pages → canvas fallback.
+    await ctx.addInitScript(() => {
+      delete globalThis.MediaStreamTrackGenerator;
+    });
+  }
 
   // A fake website to screenshot / record (no real internet needed).
   await ctx.route('https://bug.example.test/**', (route) =>

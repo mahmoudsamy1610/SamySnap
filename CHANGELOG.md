@@ -3,6 +3,14 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.3.1 – 2026-11-12
+
+- **More reliable watermark:**
+  - A second drawing method works on Chrome versions without the newer frame-processing API, and keeps running while the recorder window is minimized.
+  - If drawing a frame ever fails, the original frame is recorded instead of freezing the video.
+- **No silent failures:** if the watermark can't be added, a notification and a popup warning say so.
+- While recording, the popup shows **"Watermark on"** when it's active.
+
 ## 1.3.0 – 2026-11-12
 
 - **Watermark:** turn on "Add watermark" in the popup to burn the SamySnap logo, your own text and an optional live date & time into the video.

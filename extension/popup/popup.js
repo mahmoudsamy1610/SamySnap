@@ -75,7 +75,7 @@ function render() {
     up.textContent =
       s.phase === PHASE.done
         ? `Upload complete${s.copied === false ? '' : ' – link is on your clipboard'}.`
-        : `Uploading…${sizes}`;
+        : `Uploading…${sizes}${s.watermark && recording ? ' · Watermark on' : ''}`;
   } else if (starting) {
     up.hidden = false;
     up.textContent = 'Choose a screen, window or tab in the picker…';

@@ -121,6 +121,30 @@ describe('watermark', { timeout: 90_000 }, () => {
     assert.equal(await h.page.inputValue('#wm-position'), 'top-left');
   });
 
+  test('Chrome without MediaStreamTrackGenerator → canvas fallback still burns the watermark in', { skip: !hasDisplay && 'needs a display' }, async () => {
+    const h = await start({ noInsertableStreams: true });
+    await h.page.evaluate(() =>
+      chrome.storage.local.set({ settings: { watermark: { enabled: true, text: 'Acme QA', position: 'bottom-right', timestamp: true } } }),
+    );
+    await h.send('start');
+    const s = await h.waitState((x) => x.phase === 'recording', { label: 'recording' });
+    assert.equal(s.watermark, true);
+    assert.equal(s.watermarkMethod, 'canvas');
+    assert.equal(s.watermarkError, null);
+    // popup confirms it is on
+    await h.page.reload();
+    await h.page.waitForSelector('#main-view:not([hidden])');
+    await h.waitState((x) => x.totalBytes > 0, { label: 'data' });
+    await h.page.reload();
+    await h.page.waitForSelector('#upload-status:not([hidden])');
+    assert.match(await h.page.textContent('#upload-status'), /Watermark on/);
+    await sleep(2000);
+    await h.send('stop');
+    await h.waitState((x) => x.phase === 'done', { label: 'done' });
+    const r = await redPixelsInVideo(h, h.drive.fileData(s.fileId), { x: 0.75, y: 0.8 });
+    assert.ok(r.red > 50, `logo pixels via canvas fallback: ${r.red}`);
+  });
+
   test('full recording: logo burned into the uploaded video only when enabled', { skip: !hasDisplay && 'needs a display' }, async () => {
     const results = {};
     for (const enabled of [true, false]) {
@@ -132,6 +156,7 @@ describe('watermark', { timeout: 90_000 }, () => {
       await h.send('start');
       const s = await h.waitState((x) => x.phase === 'recording', { label: 'recording' });
       assert.equal(s.watermark, enabled);
+      assert.equal(s.watermarkMethod, enabled ? 'insertable-streams' : null);
       await sleep(2500);
       await h.send('stop');
       await h.waitState((x) => x.phase === 'done', { label: 'done' });

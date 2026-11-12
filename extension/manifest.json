@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SamySnap – screen recorder to Google Drive",
   "short_name": "SamySnap",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Record your screen and get a shareable Google Drive link on your clipboard the instant you stop.",
   "minimum_chrome_version": "116",
   "icons": {

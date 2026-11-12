@@ -88,9 +88,19 @@ export function drawWatermark(ctx, { width, height, text, timestampText, positio
   return L;
 }
 
-/** True when this Chrome can process video frames (insertable streams). */
-export function canWatermark(env = globalThis) {
+/** True when this Chrome can process frames with insertable streams (preferred). */
+export function canWatermarkInsertable(env = globalThis) {
   return Boolean(env.MediaStreamTrackProcessor && env.MediaStreamTrackGenerator && env.VideoFrame && env.OffscreenCanvas);
+}
+
+/** True when the canvas fallback is possible. */
+export function canWatermarkCanvas(env = globalThis) {
+  return Boolean(env.HTMLCanvasElement?.prototype?.captureStream && env.Worker);
+}
+
+/** Can we add a watermark at all (either method)? */
+export function canWatermark(env = globalThis) {
+  return canWatermarkInsertable(env) || canWatermarkCanvas(env);
 }
 
 /**
@@ -107,47 +117,131 @@ export function watermarkTrack(track, opts, { logo, now = () => new Date() } = {
   let ctx = null;
   let lastSecond = -1;
   let stamp = '';
+  let errored = false;
 
   const transformer = new TransformStream({
     transform(frame, controller) {
-      const w = frame.displayWidth;
-      const h = frame.displayHeight;
-      if (!canvas || canvas.width !== w || canvas.height !== h) {
-        canvas = new OffscreenCanvas(w, h); // window captures can change size
-        ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+      try {
+        controller.enqueue(paint(frame));
+        frame.close();
+      } catch (err) {
+        // Never freeze the video: pass the original frame through.
+        if (!errored) console.warn('watermark frame failed', err);
+        errored = true;
+        controller.enqueue(frame);
       }
-      ctx.drawImage(frame, 0, 0, w, h);
-      if (opts.timestamp) {
-        const d = now();
-        const s = Math.floor(d.getTime() / 1000);
-        if (s !== lastSecond) {
-          lastSecond = s;
-          stamp = formatTimestamp(d);
-        }
-      }
-      drawWatermark(ctx, {
-        width: w,
-        height: h,
-        text: opts.text,
-        timestampText: opts.timestamp ? stamp : '',
-        position: opts.position,
-        logo,
-      });
-      const out = new VideoFrame(canvas, { timestamp: frame.timestamp, duration: frame.duration ?? undefined });
-      frame.close();
-      controller.enqueue(out);
     },
   });
+
+  function paint(frame) {
+    const w = frame.displayWidth;
+    const h = frame.displayHeight;
+    if (!canvas || canvas.width !== w || canvas.height !== h) {
+      canvas = new OffscreenCanvas(w, h); // window captures can change size
+      ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    }
+    ctx.drawImage(frame, 0, 0, w, h);
+    if (opts.timestamp) {
+      const d = now();
+      const s = Math.floor(d.getTime() / 1000);
+      if (s !== lastSecond) {
+        lastSecond = s;
+        stamp = formatTimestamp(d);
+      }
+    }
+    drawWatermark(ctx, {
+      width: w,
+      height: h,
+      text: opts.text,
+      timestampText: opts.timestamp ? stamp : '',
+      position: opts.position,
+      logo,
+    });
+    return new VideoFrame(canvas, { timestamp: frame.timestamp, duration: frame.duration ?? undefined });
+  }
 
   const pipe = processor.readable.pipeThrough(transformer).pipeTo(generator.writable);
   pipe.catch(() => {}); // ends when the source track stops
 
   return {
     track: generator,
+    method: 'insertable-streams',
     stop() {
       generator.stop();
     },
   };
+}
+
+/**
+ * Fallback for Chrome versions without MediaStreamTrackGenerator on pages:
+ * <video> (the screen) → <canvas> + watermark → canvas.captureStream().
+ * Frames are pulled by ticks from a worker (worker timers keep running in a
+ * minimized window, page timers and requestAnimationFrame don't).
+ * @returns {Promise<{track: MediaStreamTrack, method: string, stop: () => void}>}
+ */
+export async function watermarkTrackCanvas(track, opts, { logo, tickerUrl, fps = 30, now = () => new Date() } = {}) {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = new MediaStream([track]);
+  await video.play();
+  if (!video.videoWidth) await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const out = canvas.captureStream(0); // we push frames ourselves
+  const outTrack = out.getVideoTracks()[0];
+  let lastSecond = -1;
+  let stamp = '';
+
+  const draw = () => {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) return;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.drawImage(video, 0, 0, w, h);
+    if (opts.timestamp) {
+      const d = now();
+      const s = Math.floor(d.getTime() / 1000);
+      if (s !== lastSecond) {
+        lastSecond = s;
+        stamp = formatTimestamp(d);
+      }
+    }
+    drawWatermark(ctx, { width: w, height: h, text: opts.text, timestampText: opts.timestamp ? stamp : '', position: opts.position, logo });
+    outTrack.requestFrame?.();
+  };
+  draw();
+
+  const worker = new Worker(tickerUrl);
+  worker.onmessage = draw;
+  worker.postMessage({ fps });
+
+  return {
+    track: outTrack,
+    method: 'canvas',
+    stop() {
+      worker.postMessage({ fps: 0 });
+      worker.terminate();
+      outTrack.stop();
+      video.srcObject = null;
+    },
+  };
+}
+
+/**
+ * Pick the best available method.
+ * @returns {Promise<{track: MediaStreamTrack, method: string, stop: () => void}>}
+ */
+export async function createWatermarkedTrack(track, opts, { logo, tickerUrl, env = globalThis } = {}) {
+  if (canWatermarkInsertable(env)) return watermarkTrack(track, opts, { logo });
+  if (canWatermarkCanvas(env)) return watermarkTrackCanvas(track, opts, { logo, tickerUrl });
+  throw new Error('This Chrome version can’t process video frames.');
 }
 
 /** Load the SamySnap logo as an ImageBitmap (best effort). */

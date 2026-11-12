@@ -45,20 +45,21 @@ async function probeVideo(h, bytes) {
 
 describe('extension basics', { timeout: 60_000 }, () => {
   test('loads with the stable ID derived from manifest "key"', async () => {
-    const h = await start({ signedIn: false });
+    const h = await start({ configured: false });
     assert.equal(h.extId, extensionIdFromKey(manifest.key));
   });
 
-  test('popup shows "Connect Google Drive" when not signed in', async () => {
-    const h = await start({ signedIn: false });
+  test('fresh install: popup offers the setup guide instead of Record', async () => {
+    const h = await start({ configured: false });
     await h.page.reload();
-    await h.page.waitForSelector('#connect-view:not([hidden])');
-    assert.equal(await h.page.textContent('#connect'), 'Connect Google Drive');
+    await h.page.waitForSelector('#setup-view:not([hidden])');
+    assert.equal(await h.page.textContent('#open-setup'), 'Start setup');
     assert.equal(await h.page.isHidden('#main-view'), true);
+    assert.equal(await h.page.isHidden('#connect-view'), true);
   });
 
   test('start/stop command is registered (Alt+Shift+R when Chrome assigns it)', async () => {
-    const h = await start({ signedIn: false });
+    const h = await start({ configured: false });
     const cmds = await h.page.evaluate(() => chrome.commands.getAll());
     const c = cmds.find((x) => x.name === 'toggle-recording');
     assert.ok(c, 'command registered');

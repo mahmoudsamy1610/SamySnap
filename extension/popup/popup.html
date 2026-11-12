@@ -12,10 +12,18 @@
       <span id="shortcut" class="muted kbd"></span>
     </header>
 
-    <!-- First run -->
+    <!-- First run: nothing set up yet -->
+    <section id="setup-view" hidden>
+      <p class="welcome"><b>Welcome!</b> Record your screen and get a Google Drive link the moment you stop.</p>
+      <p class="muted">First, a quick one-time setup to connect your Google Drive (about 5 minutes, step by step).</p>
+      <button id="open-setup" class="big primary">Start setup</button>
+    </section>
+
+    <!-- Set up, but signed out -->
     <section id="connect-view" hidden>
-      <p>Connect your Google Drive once. Recordings go to a <b>Bug Recordings</b> folder and the share link is copied the moment you stop.</p>
+      <p>Connect your Google Drive. Recordings go to a <b>Bug Recordings</b> folder and the link is copied the moment you stop.</p>
       <button id="connect" class="big primary">Connect Google Drive</button>
+      <p class="center"><button id="connect-setup" class="link-btn">Open the setup guide</button></p>
     </section>
 
     <!-- Main -->
@@ -50,7 +58,10 @@
 
       <footer class="row spread muted">
         <span>Saved to Drive › Bug Recordings</span>
-        <button id="disconnect" class="link-btn">Disconnect</button>
+        <span class="row">
+          <button id="footer-setup" class="link-btn">Setup</button>
+          <button id="disconnect" class="link-btn">Disconnect</button>
+        </span>
       </footer>
     </section>
 

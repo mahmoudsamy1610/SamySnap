@@ -1,52 +1,183 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAuthFetch, getToken, removeToken, disconnect } from '../../extension/lib/auth.js';
+import {
+  createAuth,
+  createAuthFetch,
+  AuthError,
+  isValidClientId,
+  cleanClientId,
+  buildAuthUrl,
+  parseAuthRedirect,
+} from '../../extension/lib/auth.js';
+import { STORAGE, DRIVE_SCOPE } from '../../extension/lib/constants.js';
+import { memoryStore } from '../helpers/fake-drive.js';
 
-function fakeIdentity(tokens) {
-  const calls = { get: [], removed: [] };
-  const queue = [...tokens];
+const CLIENT = '1234567890-abcdef.apps.googleusercontent.com';
+const REDIRECT = 'https://mlkhplkihjdfolnglmelgohmfnilomnl.chromiumapp.org/';
+
+/** Fake chrome.identity. `flow` decides what launchWebAuthFlow returns per call. */
+function fakeIdentity({ flow, chromeTokens = ['ctok'] } = {}) {
+  const calls = { flows: [], removed: [], getAuthToken: [] };
   return {
     calls,
-    identity: {
-      async getAuthToken(opts) {
-        calls.get.push(opts);
-        const t = queue.length > 1 ? queue.shift() : queue[0];
-        if (t instanceof Error) throw t;
-        return t;
-      },
-      async removeCachedAuthToken({ token }) {
-        calls.removed.push(token);
-      },
-      async clearAllCachedAuthTokens() {
-        calls.cleared = true;
-      },
+    getRedirectURL: () => REDIRECT,
+    async launchWebAuthFlow(opts) {
+      calls.flows.push(opts);
+      return flow(opts, calls.flows.length);
+    },
+    async getAuthToken(opts) {
+      calls.getAuthToken.push(opts);
+      return { token: chromeTokens[0] };
+    },
+    async removeCachedAuthToken({ token }) {
+      calls.removed.push(token);
+    },
+    async clearAllCachedAuthTokens() {
+      calls.cleared = true;
     },
   };
 }
 
-describe('getToken', () => {
-  test('supports the MV3 {token} result', async () => {
-    const { identity } = fakeIdentity([{ token: 'abc', grantedScopes: [] }]);
-    assert.equal(await getToken({ identity }), 'abc');
+const okRedirect = (token = 'tok', expiresIn = 3599) => `${REDIRECT}#access_token=${token}&token_type=Bearer&expires_in=${expiresIn}&scope=x`;
+
+function setup({ clientId = CLIENT, manifestClientId = 'YOUR_CLIENT_ID.apps.googleusercontent.com', flow, now } = {}) {
+  const identity = fakeIdentity({ flow: flow ?? (() => okRedirect()) });
+  const session = memoryStore();
+  const local = memoryStore(clientId ? { [STORAGE.clientId]: clientId } : {});
+  let t = 1_000_000;
+  const clock = now ?? { now: () => t, advance: (ms) => (t += ms) };
+  const auth = createAuth({
+    identity,
+    session,
+    local,
+    manifest: { oauth2: { client_id: manifestClientId } },
+    now: clock.now,
+    fetch: async () => new Response(''),
   });
-  test('supports the legacy string result', async () => {
-    const { identity } = fakeIdentity(['abc']);
-    assert.equal(await getToken({ identity }), 'abc');
+  return { auth, identity, session, local, clock };
+}
+
+describe('client id helpers', () => {
+  test('isValidClientId', () => {
+    assert.ok(isValidClientId(CLIENT));
+    assert.ok(isValidClientId(`  ${CLIENT}  `));
+    assert.ok(!isValidClientId('GOCSPX-secretlooking'));
+    assert.ok(!isValidClientId(''));
+    assert.ok(!isValidClientId('abc.apps.googleusercontent.com'));
   });
-  test('passes interactive through and defaults to false', async () => {
-    const { identity, calls } = fakeIdentity(['abc']);
-    await getToken({ identity });
-    await getToken({ identity, interactive: true });
-    assert.deepEqual(calls.get, [{ interactive: false }, { interactive: true }]);
+  test('cleanClientId strips copy/paste noise', () => {
+    assert.equal(cleanClientId(`Client ID: "${CLIENT}"\n`), CLIENT);
+    assert.equal(cleanClientId(` ${CLIENT} `), CLIENT);
+    assert.equal(cleanClientId('nonsense'), 'nonsense');
   });
-  test('throws when no token', async () => {
-    const { identity } = fakeIdentity([{}]);
-    await assert.rejects(getToken({ identity }), /Not connected/);
+});
+
+describe('auth URL / redirect parsing', () => {
+  test('requests ONLY drive.file with the implicit token flow', () => {
+    const u = new URL(buildAuthUrl({ clientId: CLIENT, redirectUri: REDIRECT, interactive: true }));
+    assert.equal(u.origin + u.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+    assert.equal(u.searchParams.get('scope'), DRIVE_SCOPE);
+    assert.equal(u.searchParams.get('response_type'), 'token');
+    assert.equal(u.searchParams.get('redirect_uri'), REDIRECT);
+    assert.equal(u.searchParams.get('client_id'), CLIENT);
+    assert.equal(u.searchParams.get('prompt'), null);
   });
-  test('removeToken ignores empty token', async () => {
-    const { identity, calls } = fakeIdentity(['x']);
-    await removeToken('', { identity });
-    assert.deepEqual(calls.removed, []);
+  test('silent flow uses prompt=none', () => {
+    const u = new URL(buildAuthUrl({ clientId: CLIENT, redirectUri: REDIRECT, interactive: false }));
+    assert.equal(u.searchParams.get('prompt'), 'none');
+  });
+  test('parses token and expiry from the fragment', () => {
+    assert.deepEqual(parseAuthRedirect(okRedirect('abc', 100)), { token: 'abc', expiresIn: 100 });
+  });
+  test('parses errors', () => {
+    assert.deepEqual(parseAuthRedirect(`${REDIRECT}#error=access_denied`), { error: 'access_denied' });
+    assert.deepEqual(parseAuthRedirect(`${REDIRECT}?error=interaction_required`), { error: 'interaction_required' });
+    assert.deepEqual(parseAuthRedirect(REDIRECT), { error: 'no_token' });
+  });
+});
+
+describe('createAuth – configuration', () => {
+  test('nothing set up → not_configured', async () => {
+    const { auth } = setup({ clientId: null });
+    assert.deepEqual(await auth.config(), { mode: 'none' });
+    await assert.rejects(auth.getToken(), (e) => e instanceof AuthError && e.code === 'not_configured');
+  });
+  test('pasted client id → web mode', async () => {
+    const { auth } = setup();
+    assert.deepEqual(await auth.config(), { mode: 'web', clientId: CLIENT });
+  });
+  test('manifest client id (advanced) → chrome.identity.getAuthToken', async () => {
+    const { auth, identity } = setup({ clientId: null, manifestClientId: CLIENT });
+    assert.equal((await auth.config()).mode, 'chrome');
+    assert.equal(await auth.getToken({ interactive: true }), 'ctok');
+    assert.deepEqual(identity.calls.getAuthToken, [{ interactive: true }]);
+    await auth.removeToken('ctok');
+    assert.deepEqual(identity.calls.removed, ['ctok']);
+  });
+});
+
+describe('createAuth – web sign-in', () => {
+  test('silent first; caches the token in session storage', async () => {
+    const { auth, identity, session } = setup();
+    assert.equal(await auth.getToken(), 'tok');
+    assert.equal(identity.calls.flows.length, 1);
+    assert.equal(identity.calls.flows[0].interactive, false);
+    assert.ok((await session.get(STORAGE.token)).expiresAt > 0);
+    assert.equal(await auth.getToken(), 'tok');
+    assert.equal(identity.calls.flows.length, 1, 'served from cache');
+  });
+
+  test('refreshes before expiry', async () => {
+    let n = 0;
+    const { auth, clock } = setup({ flow: () => okRedirect(`tok${++n}`, 3600) });
+    assert.equal(await auth.getToken(), 'tok1');
+    clock.advance(3600_000 - 60_000); // inside the 2-minute refresh margin
+    assert.equal(await auth.getToken(), 'tok2');
+  });
+
+  test('silent fails → interactive window when allowed', async () => {
+    const { auth, identity } = setup({
+      flow: (opts) => (opts.interactive ? okRedirect('itok') : Promise.reject(new Error('User interaction required.'))),
+    });
+    await assert.rejects(auth.getToken({ interactive: false }), AuthError);
+    assert.equal(await auth.getToken({ interactive: true }), 'itok');
+    assert.deepEqual(identity.calls.flows.map((f) => f.interactive), [false, false, true]);
+  });
+
+  test('closing the Google window → cancelled', async () => {
+    const { auth } = setup({
+      flow: (opts) => Promise.reject(new Error(opts.interactive ? 'The user did not approve access.' : 'no')),
+    });
+    await assert.rejects(auth.getToken({ interactive: true }), (e) => e.code === 'cancelled');
+  });
+
+  test('access_denied in redirect → cancelled; other errors → failed', async () => {
+    const denied = setup({ flow: () => `${REDIRECT}#error=access_denied` });
+    await assert.rejects(denied.auth.getToken(), (e) => e.code === 'cancelled');
+    const other = setup({ flow: () => `${REDIRECT}#error=server_error` });
+    await assert.rejects(other.auth.getToken(), (e) => e.code === 'failed');
+  });
+
+  test('concurrent callers share one silent sign-in', async () => {
+    const { auth, identity } = setup({ flow: () => new Promise((r) => setTimeout(() => r(okRedirect()), 5)) });
+    const tokens = await Promise.all([auth.getToken(), auth.getToken(), auth.getToken()]);
+    assert.deepEqual(tokens, ['tok', 'tok', 'tok']);
+    assert.equal(identity.calls.flows.length, 1);
+  });
+
+  test('removeToken clears the cache → next call signs in again', async () => {
+    const { auth, identity } = setup();
+    await auth.getToken();
+    await auth.removeToken('tok');
+    await auth.getToken();
+    assert.equal(identity.calls.flows.length, 2);
+  });
+
+  test('disconnect clears the cached token', async () => {
+    const { auth, session } = setup();
+    await auth.getToken();
+    await auth.disconnect();
+    assert.equal(await session.get(STORAGE.token), undefined);
   });
 });
 
@@ -98,8 +229,7 @@ describe('createAuthFetch', () => {
         return new Response('', { status: 401 });
       },
     });
-    const res = await authFetch('https://x');
-    assert.equal(res.status, 401);
+    assert.equal((await authFetch('https://x')).status, 401);
     assert.equal(n, 2);
   });
 
@@ -118,26 +248,5 @@ describe('createAuthFetch', () => {
     });
     await authFetch('https://x', { method: 'PUT', body: new Blob(['hello']) });
     assert.deepEqual(bodies, ['hello', 'hello']);
-  });
-});
-
-describe('disconnect', () => {
-  test('revokes and clears cached tokens', async () => {
-    const { identity, calls } = fakeIdentity(['tok']);
-    const revoked = [];
-    await disconnect({ identity, fetch: async (url) => revoked.push(url) });
-    assert.match(revoked[0], /revoke\?token=tok/);
-    assert.deepEqual(calls.removed, ['tok']);
-    assert.ok(calls.cleared);
-  });
-  test('is a no-op when not connected', async () => {
-    const { identity, calls } = fakeIdentity([new Error('no')]);
-    await disconnect({ identity, fetch: async () => assert.fail('should not revoke') });
-    assert.deepEqual(calls.removed, []);
-  });
-  test('still clears the cache if revoke fails (offline)', async () => {
-    const { identity, calls } = fakeIdentity(['tok']);
-    await disconnect({ identity, fetch: async () => { throw new TypeError('offline'); } });
-    assert.deepEqual(calls.removed, ['tok']);
   });
 });

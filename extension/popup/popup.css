@@ -17,3 +17,6 @@ header { margin-bottom: 12px; }
 footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 11px; }
 #error-box { white-space: normal; }
 #error { white-space: pre-wrap; }
+.welcome { margin-top: 0; }
+.center { text-align: center; }
+#setup-view .muted, #connect-view p { margin-bottom: 12px; }

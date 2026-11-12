@@ -11,11 +11,32 @@ const shoot = async (page, name) => {
 };
 
 const errors = [];
-const h = await launch({ signedIn: false });
+
+// Setup guide
+{
+  const g = await launch({ configured: false });
+  const p = await g.ctx.newPage();
+  await p.setViewportSize({ width: 760, height: 900 });
+  for (const [step, name] of [[0, 'setup-0-welcome'], [1, 'setup-1-project'], [3, 'setup-3-app-name'], [5, 'setup-5-key'], [6, 'setup-6-paste']]) {
+    await p.goto(g.url(`setup/setup.html?step=${step}`));
+    await p.waitForSelector(`.step[data-step="${step}"]:not([hidden])`);
+    await sleep(400);
+    await shoot(p, `${name}.png`);
+  }
+  await p.goto(g.url('setup/setup.html?step=6'));
+  await p.fill('#client-id', '1234567890-abc123def456.apps.googleusercontent.com');
+  await p.click('#connect');
+  await p.waitForSelector('.step[data-step="7"]:not([hidden])');
+  await sleep(400);
+  await shoot(p, 'setup-7-done.png');
+  await g.close();
+}
+
+const h = await launch({ configured: false });
 h.sw.on('console', (m) => m.type() === 'error' && errors.push(`[sw] ${m.text()}`));
 await h.page.setViewportSize({ width: 340, height: 220 });
 await h.page.reload();
-await h.page.waitForSelector('#connect-view:not([hidden])');
+await h.page.waitForSelector('#setup-view:not([hidden])');
 await shoot(h.page, '1-connect.png');
 await h.close();
 

@@ -22,12 +22,18 @@ export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 export const HISTORY_LIMIT = 5;
 
+/** The only OAuth scope: files this app created (least privilege). */
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
 /** chrome.storage keys */
 export const STORAGE = {
   folderId: 'driveFolderId', // local
   history: 'linkHistory', // local
   settings: 'settings', // local
   connected: 'driveConnected', // local
+  clientId: 'googleClientId', // local – pasted in the setup wizard
+  setupStep: 'setupStep', // local – where the user is in the setup wizard
+  token: 'googleAccessToken', // session – cached {token, expiresAt} (web sign-in only)
   state: 'recState', // session (cleared when the browser restarts)
 };
 

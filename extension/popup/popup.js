@@ -16,9 +16,21 @@ const send = (type, extra = {}) => chrome.runtime.sendMessage({ target: TARGET.b
 // Rendering
 // ---------------------------------------------------------------------------
 
-function renderConnected(connected) {
-  $('connect-view').hidden = connected;
-  $('main-view').hidden = !connected;
+/** Show exactly one of: setup guide CTA, connect button, main UI. */
+function renderStatus({ configured, connected }) {
+  $('setup-view').hidden = configured;
+  $('connect-view').hidden = !configured || connected;
+  $('main-view').hidden = !(configured && connected);
+}
+
+async function refreshStatus() {
+  const status = await send(MSG.STATUS).catch(() => null);
+  renderStatus(status ?? { configured: false, connected: false });
+}
+
+async function openSetup() {
+  await send(MSG.OPEN_SETUP);
+  window.close();
 }
 
 function render() {
@@ -137,7 +149,7 @@ $('connect').addEventListener('click', async () => {
   const res = await send(MSG.CONNECT);
   $('connect').disabled = false;
   $('connect').textContent = 'Connect Google Drive';
-  if (res?.ok) renderConnected(true);
+  if (res?.ok) refreshStatus();
   else showConnectError(res?.error || 'Could not connect.');
 });
 
@@ -151,7 +163,7 @@ $('toggle').addEventListener('click', async () => {
     await send(MSG.STOP);
   } else {
     const res = await send(MSG.START);
-    if (res?.ok) window.close(); // get out of the way of the picker
+    if (res?.ok || res?.needsSetup) window.close(); // get out of the way of the picker / setup tab
   }
 });
 
@@ -161,8 +173,12 @@ $('dismiss').addEventListener('click', () => send(MSG.RESET));
 
 $('disconnect').addEventListener('click', async () => {
   await send(MSG.DISCONNECT);
-  renderConnected(false);
+  refreshStatus();
 });
+
+$('open-setup').addEventListener('click', openSetup);
+$('connect-setup').addEventListener('click', openSetup);
+$('footer-setup').addEventListener('click', openSetup);
 
 $('mic').addEventListener('change', async (e) => {
   const settings = (await chrome.storage.local.get(STORAGE.settings))[STORAGE.settings] ?? {};
@@ -179,17 +195,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
     render();
   }
   if (area === 'local' && changes[STORAGE.history]) renderHistory(changes[STORAGE.history].newValue);
-  if (area === 'local' && changes[STORAGE.connected]) renderConnected(Boolean(changes[STORAGE.connected].newValue));
+  if (area === 'local' && (changes[STORAGE.connected] || changes[STORAGE.clientId])) refreshStatus();
 });
-
-async function isConnected() {
-  try {
-    const r = await chrome.identity.getAuthToken({ interactive: false });
-    return Boolean(typeof r === 'string' ? r : r?.token);
-  } catch {
-    return false;
-  }
-}
 
 async function init() {
   const [session, local, commands] = await Promise.all([
@@ -203,7 +210,7 @@ async function init() {
   $('shortcut').textContent = cmd?.shortcut ? `${cmd.shortcut} to record/stop` : '';
   renderHistory(local[STORAGE.history]);
   render();
-  renderConnected(await isConnected());
+  await refreshStatus();
 }
 
 init();

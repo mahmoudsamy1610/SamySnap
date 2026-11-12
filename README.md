@@ -3,6 +3,7 @@
 A Chrome extension (Manifest V3) that records your **whole screen**, a window or a tab, and streams the video into **your Google Drive while you record**.
 When you click **Stop**, a shareable Drive link is **already on your clipboard**, ready to paste into a bug ticket.
 
+- A **built-in setup guide** that opens on install, with plain-language steps and Copy buttons. You paste your key; there's no file editing.
 - One-time Google sign-in, using the least-privilege `drive.file` scope.
 - 1080p / 30 fps, VP9 (falls back to VP8), about 4 Mbps, with optional tab or system audio plus microphone.
 - Red **REC** badge, **Alt+Shift+R** shortcut, and a "Link copied to clipboard." notification.
@@ -46,12 +47,15 @@ extension/
 │                        itself when the upload is done.
 ├── offscreen/           Offscreen document (reason CLIPBOARD): textarea +
 │                        execCommand('copy'), so copying works with the popup closed.
-├── popup/               Connect / Record / Stop, timer, upload status, last 5 links, mic option.
+├── popup/               Setup / Connect / Record / Stop, timer, upload status, last 5 links, mic option.
+├── setup/               Step-by-step setup guide (opens on install). Saves the pasted Client ID.
 └── lib/
     ├── uploader.js      Resumable uploader: 256 KiB alignment, sequential queue,
     │                    308/Range handling, backoff, resume via "bytes */*".
     ├── drive.js         Folder cache, files.create, permissions.create, resumable session.
-    ├── auth.js          chrome.identity.getAuthToken; on 401: remove cached token, retry once.
+    ├── auth.js          Sign-in: launchWebAuthFlow with the pasted Client ID (token cached and
+    │                    refreshed silently) or getAuthToken with a manifest client;
+    │                    on 401: remove cached token, retry once.
     ├── media.js         Codec choice, 1080p30 constraints, Web Audio mixing (system audio + mic).
     └── filename.js, history.js, retry.js, messages.js, constants.js
 ```

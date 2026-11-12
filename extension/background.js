@@ -10,7 +10,7 @@
 import { STORAGE } from './lib/constants.js';
 import { MSG, PHASE, TARGET } from './lib/messages.js';
 import { upsertHistory, patchHistory } from './lib/history.js';
-import { getToken, disconnect, defaultAuthFetch } from './lib/auth.js';
+import { defaultAuth, defaultAuthFetch, AuthError, isValidClientId, cleanClientId } from './lib/auth.js';
 import { DriveClient } from './lib/drive.js';
 
 const ACTIVE_PHASES = new Set([PHASE.starting, PHASE.recording, PHASE.finishing]);
@@ -109,9 +109,13 @@ async function startRecording() {
 
   // Make sure we have a token (shows Google sign-in only if not connected yet).
   try {
-    await getToken({ interactive: true });
+    await defaultAuth().getToken({ interactive: true });
     await chrome.storage.local.set({ [STORAGE.connected]: true });
   } catch (err) {
+    if (err instanceof AuthError && err.code === 'not_configured') {
+      await openSetup();
+      return { ok: false, error: 'Google Drive is not set up yet.', needsSetup: true };
+    }
     await updateState(() => ({ phase: PHASE.error, error: explainAuthError(err) }));
     return { ok: false, error: explainAuthError(err) };
   }
@@ -230,12 +234,32 @@ async function onRecorderUpdate(patch) {
 }
 
 function explainAuthError(err) {
-  const msg = String(err?.message || err);
-  if (/client|OAuth2|bad client id|invalid_client/i.test(msg)) {
-    return `Google sign-in is not configured: ${msg}. Put your OAuth client ID in manifest.json (see SETUP.md).`;
+  if (err instanceof AuthError) {
+    if (err.code === 'not_configured') return 'Google Drive is not set up yet. Open the setup guide from the SamySnap popup.';
+    if (err.code === 'cancelled') {
+      return 'The Google window was closed before finishing. If Google showed an error page, re-check steps 4 and 5 of the setup guide.';
+    }
   }
-  if (/did not approve|cancel|closed/i.test(msg)) return 'Google sign-in was cancelled.';
+  const msg = String(err?.message || err);
+  if (/client|OAuth2|bad client id|invalid_client|redirect_uri/i.test(msg)) {
+    return 'Google did not accept your key. Re-check step 5 of the setup guide (the key and the pasted link).';
+  }
   return `Google sign-in failed: ${msg}`;
+}
+
+const SETUP_URL = 'setup/setup.html';
+
+/** Open the setup guide (focus it if already open). */
+async function openSetup() {
+  const url = chrome.runtime.getURL(SETUP_URL);
+  // getContexts finds our own tabs without needing the "tabs" permission.
+  const [existing] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] }).catch(() => []);
+  if (existing && existing.tabId >= 0) {
+    await chrome.tabs.update(existing.tabId, { active: true });
+    await chrome.windows.update(existing.windowId, { focused: true }).catch(() => {});
+  } else {
+    await chrome.tabs.create({ url });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +269,7 @@ function explainAuthError(err) {
 const handlers = {
   async [MSG.CONNECT]() {
     try {
-      await getToken({ interactive: true });
+      await defaultAuth().getToken({ interactive: true });
       await chrome.storage.local.set({ [STORAGE.connected]: true });
       // Warm the folder cache so the first recording starts faster (best effort).
       new DriveClient({ authFetch: defaultAuthFetch() }).ensureFolder().catch((e) => console.warn(e));
@@ -255,8 +279,44 @@ const handlers = {
     }
   },
   async [MSG.DISCONNECT]() {
-    await disconnect();
+    await defaultAuth().disconnect();
     await chrome.storage.local.remove([STORAGE.connected, STORAGE.folderId]);
+    return { ok: true };
+  },
+  async [MSG.STATUS]() {
+    const c = await defaultAuth().config();
+    const local = await chrome.storage.local.get(STORAGE.connected);
+    return {
+      ok: true,
+      configured: c.mode !== 'none',
+      mode: c.mode,
+      connected: c.mode !== 'none' && Boolean(local[STORAGE.connected]),
+      redirectUri: chrome.identity.getRedirectURL(),
+      extensionId: chrome.runtime.id,
+    };
+  },
+  async [MSG.SAVE_CLIENT_ID](msg) {
+    const id = cleanClientId(msg.clientId);
+    if (!isValidClientId(id)) {
+      return { ok: false, error: 'That doesn’t look like a Client ID. It should end with “.apps.googleusercontent.com”.' };
+    }
+    const prev = (await chrome.storage.local.get(STORAGE.clientId))[STORAGE.clientId];
+    if (prev !== id) {
+      // New key → forget the old sign-in and folder (they belong to the old key).
+      await chrome.storage.session.remove(STORAGE.token);
+      await chrome.storage.local.remove([STORAGE.connected, STORAGE.folderId]);
+    }
+    await chrome.storage.local.set({ [STORAGE.clientId]: id });
+    return { ok: true, clientId: id };
+  },
+  async [MSG.RESET_SETUP]() {
+    await defaultAuth().disconnect().catch(() => {});
+    await chrome.storage.session.remove(STORAGE.token);
+    await chrome.storage.local.remove([STORAGE.clientId, STORAGE.connected, STORAGE.folderId, STORAGE.setupStep]);
+    return { ok: true };
+  },
+  async [MSG.OPEN_SETUP]() {
+    await openSetup();
     return { ok: true };
   },
   [MSG.START]: () => startRecording(),
@@ -324,7 +384,12 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 
 // Fresh browser session → clear any stale badge.
 chrome.runtime.onStartup.addListener(() => updateState(() => ({ phase: PHASE.idle })));
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   const s = await readState();
   await applyBadge(s);
+  // First install: open the friendly setup guide right away.
+  if (reason === 'install') {
+    const c = await defaultAuth().config();
+    if (c.mode === 'none') await openSetup();
+  }
 });

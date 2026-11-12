@@ -1,9 +1,39 @@
 # SamySnap setup guide
 
-This takes about 10 minutes and you only do it once. You don't need to know how to code.
-You'll need Google Chrome and the Google account whose Drive should store the recordings.
+## The easy way: the built-in guide
+
+1. Open `chrome://extensions`, turn on **Developer mode** (top right), click **Load unpacked**, and select the **`extension`** folder inside this project. Select that folder itself, not the project root.
+2. A **"Set up SamySnap"** tab opens by itself. If it doesn't, click the SamySnap icon and then **Start setup**.
+3. Follow the 6 steps. Each one has a button that opens the right Google page, and Copy buttons for everything you need to paste.
+   At the end, you paste your key into the guide and click **Connect Google Drive**. There's no file to edit.
+
+| Welcome | A step | Paste and connect |
+|---|---|---|
+| ![](docs/screenshots/setup-0-welcome.png) | ![](docs/screenshots/setup-5-key.png) | ![](docs/screenshots/setup-6-paste.png) |
+
+**Why is this needed?** Google only lets *registered* apps access Drive. Commercial extensions such as Loom did this once for all their users. Here, you're the app's owner, so you register it once yourself. It's free and private.
 
 ---
+
+## Reference: the same steps in writing
+
+The guide uses a Google OAuth client of type **Web application**, with this redirect link (shown with a Copy button in step 5):
+
+```
+https://mlkhplkihjdfolnglmelgohmfnilomnl.chromiumapp.org/
+```
+
+<details>
+<summary>Advanced alternative: a "Chrome Extension" client in manifest.json</summary>
+
+If you'd rather use Chrome's built-in sign-in (`chrome.identity.getAuthToken`):
+
+1. Create an OAuth client of type **Chrome Extension** with Item ID `mlkhplkihjdfolnglmelgohmfnilomnl`.
+2. Put its client ID in `extension/manifest.json` under `oauth2.client_id`.
+3. Reload the extension.
+
+If no key has been pasted in the guide, SamySnap uses this client automatically.
+</details>
 
 ## Step 0: Get the code and check your extension ID
 
@@ -67,33 +97,20 @@ This is the screen Google shows when you click "Connect Google Drive".
 
 > SamySnap only uses `drive.file`. It can see **only the files it created** (the "Bug Recordings" folder and the videos), never the rest of your Drive.
 
-## Step 4: Create the "Chrome Extension" OAuth client
+## Step 4: Create the OAuth client
 
 1. Go to **Clients** in the left menu (<https://console.cloud.google.com/auth/clients>). In older consoles this is **APIs & Services → Credentials → Create credentials → OAuth client ID**.
 2. Click **Create client**.
-3. **Application type:** choose **Chrome Extension**.
+3. **Application type:** choose **Web application**.
 4. **Name:** `SamySnap`.
-5. **Item ID:** paste the extension ID from Step 0, for example `mlkhplkihjdfolnglmelgohmfnilomnl`.
+5. Under **Authorized redirect URIs**, click **+ Add URI** and paste `https://<your extension ID>.chromiumapp.org/`, for example
+   `https://mlkhplkihjdfolnglmelgohmfnilomnl.chromiumapp.org/`.
 6. Click **Create**. Copy the **Client ID**. It looks like
    `1234567890-abcdefg.apps.googleusercontent.com`.
 
-## Step 5: Put the client ID in manifest.json
+## Step 5: Paste the client ID
 
-Open `extension/manifest.json` in any text editor and replace the placeholder:
-
-```json
-"oauth2": {
-  "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
-```
-
-with your client ID:
-
-```json
-"oauth2": {
-  "client_id": "1234567890-abcdefg.apps.googleusercontent.com",
-```
-
-Save the file. Don't change the `"scopes"` line or the `"key"` line.
+Click the SamySnap icon, then **Setup**, then go to step 6 of the guide. Paste the client ID and click **Connect Google Drive**.
 
 ## Step 6: Load the extension in Chrome
 
@@ -124,9 +141,9 @@ The default is **Alt+Shift+R**, which starts and stops recording. If Chrome didn
 
 | Symptom | Fix |
 |---|---|
-| "Google sign-in is not configured" or "bad client id" | The client ID in `manifest.json` is wrong, or the OAuth client's Item ID doesn't match the extension ID. Then click the reload icon on the SamySnap card in `chrome://extensions`. |
+| "Error 400: redirect_uri_mismatch" | The redirect link in your OAuth client doesn't exactly match the one in step 5 of the guide. |
+| "Error 401: invalid_client" | The pasted key is wrong. Copy the **Client ID** again (not the client secret). |
 | "Access blocked: SamySnap has not completed the Google verification process" | Your Gmail is not in **Audience → Test users** (Step 3.5). |
-| Sign-in uses the wrong Google account | `chrome.identity` uses the account signed in to the **Chrome profile**. Use a Chrome profile signed in with the account you want. |
 | You're asked to reconnect after about 7 days | Google expires consent for apps in **Testing** mode after 7 days. To stop this, click **Publish app** under **Audience**. `drive.file` is a non-sensitive scope, so no Google review is needed. |
 | "Public sharing is blocked…" warning | Your Google Workspace admin doesn't allow "anyone with the link" sharing. The link still works for people in your organization who have access. |
 | Black or empty video on macOS | Allow Screen Recording for Chrome (Step 7.4) and restart Chrome. |

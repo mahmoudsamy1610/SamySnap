@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up SamySnap</title>
+    <link rel="stylesheet" href="../ui.css" />
+    <link rel="stylesheet" href="setup.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <h1><img src="../icons/icon48.png" alt="" /> Set up SamySnap</h1>
+        <p class="muted">About 5 minutes · you only do this once</p>
+      </header>
+
+      <nav class="progress" id="progress" aria-label="Progress" hidden>
+        <div class="bar"><div class="fill" id="progress-fill"></div></div>
+        <span id="progress-label" class="muted"></span>
+      </nav>
+
+      <main class="card">
+        <!-- 0 · Welcome -->
+        <section class="step" data-step="0">
+          <h2>Connect SamySnap to your Google Drive</h2>
+          <p class="lead">
+            Google asks every app that saves to Drive to register once. You're going to make your own
+            <b>private</b> registration. It's free, and only you can use it.
+          </p>
+          <ul class="ticks">
+            <li><span>✓</span> Free, no credit card</li>
+            <li><span>✓</span> About 5 minutes</li>
+            <li><span>✓</span> Only once, then just Record → Stop → paste the link</li>
+          </ul>
+          <div class="tip">
+            <b>How it works:</b> each step has a button that opens the right Google page in a new tab.
+            Do what the step says, then come back to this tab and click <b>Next</b>.
+            Whenever you need to type something, there's a <b>Copy</b> button.
+          </div>
+        </section>
+
+        <!-- 1 · Project -->
+        <section class="step" data-step="1" hidden>
+          <p class="kicker">Step 1</p>
+          <h2>Create your free Google Cloud space</h2>
+          <p class="lead">This is a private space where your SamySnap registration lives.</p>
+          <a class="open-btn" target="_blank" rel="noopener" href="https://console.cloud.google.com/projectcreate">
+            Open Google Cloud ↗
+          </a>
+          <ol class="todo">
+            <li>If Google asks you to accept the terms, choose your country, tick the box and click <span class="ui">Agree and continue</span>.</li>
+            <li>In <b>Project name</b>, paste: <button class="chip" data-copy="SamySnap"><code>SamySnap</code><span>Copy</span></button></li>
+            <li>Click <span class="ui">Create</span> and wait a few seconds.</li>
+          </ol>
+        </section>
+
+        <!-- 2 · Drive API -->
+        <section class="step" data-step="2" hidden>
+          <p class="kicker">Step 2</p>
+          <h2>Allow Google Drive</h2>
+          <p class="lead">This lets your space save videos to Drive.</p>
+          <a class="open-btn" target="_blank" rel="noopener" href="https://console.cloud.google.com/apis/library/drive.googleapis.com">
+            Open the Google Drive page ↗
+          </a>
+          <ol class="todo">
+            <li>At the top of the page, check that it says <b>SamySnap</b>. If it doesn't, click the name there and pick <b>SamySnap</b>.</li>
+            <li>Click the blue <span class="ui">Enable</span> button.</li>
+          </ol>
+          <p class="muted small">Already says “API Enabled” or shows a <b>Manage</b> button? Then this step is done.</p>
+        </section>
+
+        <!-- 3 · Consent screen -->
+        <section class="step" data-step="3" hidden>
+          <p class="kicker">Step 3</p>
+          <h2>Name your app</h2>
+          <p class="lead">This is the name Google shows when you connect.</p>
+          <a class="open-btn" target="_blank" rel="noopener" href="https://console.cloud.google.com/auth/overview">
+            Open the app settings ↗
+          </a>
+          <ol class="todo">
+            <li>Click <span class="ui">Get started</span>.</li>
+            <li><b>App name:</b> <button class="chip" data-copy="SamySnap"><code>SamySnap</code><span>Copy</span></button>
+              and for <b>User support email</b>, pick your email. Click <span class="ui">Next</span>.</li>
+            <li><b>Audience:</b> choose <span class="ui">External</span>, then click <span class="ui">Next</span>.</li>
+            <li><b>Contact information:</b> type your email, then click <span class="ui">Next</span>.</li>
+            <li>Tick “I agree…”, then click <span class="ui">Continue</span> and <span class="ui">Create</span>.</li>
+          </ol>
+          <p class="muted small">If you see a page with a <b>Create OAuth client</b> button instead, this step is already done. Click Next here.</p>
+        </section>
+
+        <!-- 4 · Test user -->
+        <section class="step" data-step="4" hidden>
+          <p class="kicker">Step 4</p>
+          <h2>Add yourself as a user</h2>
+          <p class="lead">Only people on this list can connect, and that's just you.</p>
+          <a class="open-btn" target="_blank" rel="noopener" href="https://console.cloud.google.com/auth/audience">
+            Open the user list ↗
+          </a>
+          <ol class="todo">
+            <li>Scroll down to <b>Test users</b> and click <span class="ui">+ Add users</span>.</li>
+            <li>Type <b>the Gmail address you'll connect with</b>.</li>
+            <li>Click <span class="ui">Save</span>.</li>
+          </ol>
+        </section>
+
+        <!-- 5 · Client -->
+        <section class="step" data-step="5" hidden>
+          <p class="kicker">Step 5</p>
+          <h2>Create your SamySnap key</h2>
+          <p class="lead">Google gives you a key that lets SamySnap sign in. You'll paste it in the next step.</p>
+          <a class="open-btn" target="_blank" rel="noopener" href="https://console.cloud.google.com/auth/clients/create">
+            Open “Create client” ↗
+          </a>
+          <ol class="todo">
+            <li><b>Application type:</b> choose <span class="ui">Web application</span>.</li>
+            <li><b>Name:</b> <button class="chip" data-copy="SamySnap"><code>SamySnap</code><span>Copy</span></button></li>
+            <li>Scroll to <b>Authorized redirect URIs</b>, click <span class="ui">+ Add URI</span> and paste this link:
+              <button class="chip wide" id="redirect-chip" data-copy=""><code id="redirect-uri">…</code><span>Copy</span></button>
+              <span class="muted small">Use the second box (“redirect URIs”), not “JavaScript origins”.</span>
+            </li>
+            <li>Click <span class="ui">Create</span>.</li>
+            <li>A box shows your <b>Client ID</b>, a long text ending in <code>.apps.googleusercontent.com</code>. Click the copy icon next to it.</li>
+          </ol>
+          <p class="muted small">Closed the box too early? Open <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener">your clients</a> and click <b>SamySnap</b> to see the Client ID again.</p>
+        </section>
+
+        <!-- 6 · Paste + connect -->
+        <section class="step" data-step="6" hidden>
+          <p class="kicker">Step 6</p>
+          <h2>Paste your key and connect</h2>
+          <label class="field">
+            <span>Client ID</span>
+            <input id="client-id" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="1234567890-abc123.apps.googleusercontent.com" />
+          </label>
+          <p id="client-id-hint" class="small muted">Paste it with Ctrl+V (⌘V on Mac).</p>
+          <button id="connect" class="big primary">Connect Google Drive</button>
+          <div class="tip">
+            <b>What you'll see next:</b> a Google window opens.
+            <ol>
+              <li>Pick your account.</li>
+              <li>Google says <i>“Google hasn't verified this app”</i>. That's normal, because it's your own app. Click <span class="ui">Continue</span>.</li>
+              <li>Allow access and click <span class="ui">Continue</span>.</li>
+            </ol>
+          </div>
+          <p id="connect-error" class="notice err" hidden></p>
+        </section>
+
+        <!-- 7 · Done -->
+        <section class="step" data-step="7" hidden>
+          <div class="done-hero">🎉</div>
+          <h2>You're all set!</h2>
+          <p class="lead">SamySnap is connected to your Google Drive.</p>
+          <ol class="todo how">
+            <li>Click the <img class="inline-icon" src="../icons/icon16.png" alt="" /> <b>SamySnap</b> icon in the toolbar, then <span class="ui">Record</span>.
+              Can't see it? Click the 🧩 puzzle icon and pin SamySnap.</li>
+            <li>Pick <b>Entire screen</b>, a window or a tab, then click <span class="ui">Share</span>.</li>
+            <li>Click <span class="ui">Stop &amp; copy link</span> and paste the link anywhere.</li>
+          </ol>
+          <p>Shortcut: <kbd id="shortcut">Alt+Shift+R</kbd> starts and stops recording.</p>
+          <details class="tip">
+            <summary><b>Optional:</b> stop Google asking you to sign in again every week</summary>
+            <p>While your app is in “Testing”, Google asks you to reconnect about once a week. To stop that:</p>
+            <ol>
+              <li>Open <a href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noopener">the user list page</a> again.</li>
+              <li>Click <span class="ui">Publish app</span>, then <span class="ui">Confirm</span>.</li>
+            </ol>
+            <p class="small muted">It stays private. Google doesn't need to review it, because SamySnap only touches files it creates.</p>
+          </details>
+          <p class="small muted">Videos are saved in your Drive in a folder called <b>Bug Recordings</b>.</p>
+          <button id="close" class="big primary">Close this tab</button>
+          <p class="center"><button id="start-over" class="link-btn small">Use a different key / start over</button></p>
+        </section>
+      </main>
+
+      <footer class="nav" id="nav">
+        <button id="back" class="ghost">← Back</button>
+        <button id="next" class="primary">Start →</button>
+      </footer>
+
+      <details class="help card">
+        <summary>Having trouble?</summary>
+        <dl>
+          <dt>Google says “Access blocked” or “has not completed the Google verification process”</dt>
+          <dd>Your email isn't on the user list. Do <a href="#" data-goto="4">step 4</a> again with the exact Gmail you're connecting with.</dd>
+          <dt>Google shows “Error 400: redirect_uri_mismatch”</dt>
+          <dd>The link in <a href="#" data-goto="5">step 5</a> wasn't pasted exactly. Open your client, fix the link under <b>Authorized redirect URIs</b>, click Save, wait a minute and try again.</dd>
+          <dt>Google shows “Error 401: invalid_client”</dt>
+          <dd>The pasted key isn't right. Copy the <b>Client ID</b> again (not the “Client secret”) and paste it in <a href="#" data-goto="6">step 6</a>.</dd>
+          <dt>Google asks for a billing account or credit card</dt>
+          <dd>You don't need one for SamySnap. Close that page and continue with the next step.</dd>
+          <dt>I can't find a button the guide mentions</dt>
+          <dd>Google sometimes moves things around. Check that <b>SamySnap</b> is selected at the top of the Google page, then look for the words in the guide.</dd>
+        </dl>
+      </details>
+    </div>
+    <script type="module" src="setup.js"></script>
+  </body>
+</html>

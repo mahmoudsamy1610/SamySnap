@@ -22,10 +22,29 @@ const NOISE_PAGE = `data:text/html,<body style="margin:0;background:#000"><canva
 const c=document.getElementById('c').getContext('2d');const img=c.createImageData(1280,720);
 (function f(){const d=img.data;for(let i=0;i<d.length;i+=4){const v=Math.random()*255|0;d[i]=v;d[i+1]=(v*7)&255;d[i+2]=(v*13)&255;d[i+3]=255}c.putImageData(img,0,0);requestAnimationFrame(f)})();</script></body>`;
 
+export const TEST_CLIENT_ID = '1234567890-samysnaptest.apps.googleusercontent.com';
+
 /**
- * @param {{signedIn?: boolean, drive?: FakeDrive}} [opts]
+ * Stub for chrome.identity.launchWebAuthFlow (no real Google in tests).
+ * Behaviour is switched at runtime through chrome.storage.local.__testAuth:
+ *   'ok' (default) → returns a token; 'deny' → user closed the window.
  */
-export async function launch({ signedIn = true, drive = new FakeDrive({ base: 'https://www.googleapis.com' }) } = {}) {
+function installAuthStub() {
+  if (!globalThis.chrome?.identity) return;
+  chrome.identity.launchWebAuthFlow = async ({ url, interactive }) => {
+    const mode = (await chrome.storage.local.get('__testAuth')).__testAuth || 'ok';
+    if (mode === 'deny') throw new Error(interactive ? 'The user did not approve access.' : 'User interaction required.');
+    return `${chrome.identity.getRedirectURL()}#access_token=tok-1&token_type=Bearer&expires_in=3599`;
+  };
+}
+
+/**
+ * @param {{configured?: boolean, drive?: FakeDrive}} [opts]
+ *   configured=true  → behaves like a user who finished the setup guide and connected.
+ *   configured=false → a fresh install (setup guide not done).
+ */
+export async function launch({ configured = true, signedIn, drive = new FakeDrive({ base: 'https://www.googleapis.com' }) } = {}) {
+  if (signedIn !== undefined) configured = signedIn; // backwards-compatible option name
   const ctx = await chromium.launchPersistentContext('', {
     channel: 'chromium',
     headless: !hasDisplay,
@@ -40,14 +59,7 @@ export async function launch({ signedIn = true, drive = new FakeDrive({ base: 'h
     ],
   });
 
-  if (signedIn) {
-    await ctx.addInitScript(() => {
-      if (location.protocol === 'chrome-extension:' && globalThis.chrome?.identity) {
-        chrome.identity.getAuthToken = async () => ({ token: 'tok-1', grantedScopes: [] });
-        chrome.identity.removeCachedAuthToken = async () => {};
-      }
-    });
-  }
+  await ctx.addInitScript(installAuthStub); // only does something on extension pages
 
   const driveFetch = drive.asFetch();
   await ctx.route('https://www.googleapis.com/**', async (route) => {
@@ -71,17 +83,22 @@ export async function launch({ signedIn = true, drive = new FakeDrive({ base: 'h
 
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent('serviceworker');
-  if (signedIn) {
-    await sw.evaluate(() => {
-      chrome.identity.getAuthToken = async () => ({ token: 'tok-1', grantedScopes: [] });
-      chrome.identity.removeCachedAuthToken = async () => {};
-    });
-  }
+  await sw.evaluate(installAuthStub);
   const extId = new URL(sw.url()).host;
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
 
+  if (configured) {
+    await sw.evaluate(
+      (clientId) => chrome.storage.local.set({ googleClientId: clientId, driveConnected: true }),
+      TEST_CLIENT_ID,
+    );
+    // The first-install setup tab may have opened before we configured – close it.
+    await sleep(300);
+    for (const p of ctx.pages()) if (p.url().includes('/setup/setup.html')) await p.close();
+  }
+
   // A normal page we drive the extension from (stands in for the popup).
-  const page = ctx.pages()[0] ?? (await ctx.newPage());
+  const page = await ctx.newPage();
   await page.goto(`chrome-extension://${extId}/popup/popup.html`);
 
   const h = {
@@ -112,6 +129,8 @@ export async function launch({ signedIn = true, drive = new FakeDrive({ base: 'h
       throw new Error(`timeout waiting for ${label}; last state: ${JSON.stringify(s)}`);
     },
     recorderPage: () => ctx.pages().find((p) => p.url().includes('/recorder/recorder.html')),
+    setupPage: () => ctx.pages().find((p) => p.url().includes('/setup/setup.html')),
+    setAuth: (mode) => page.evaluate((m) => chrome.storage.local.set({ __testAuth: m }), mode),
     async openNoise() {
       const p = await ctx.newPage();
       await p.goto(NOISE_PAGE);

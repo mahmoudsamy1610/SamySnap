@@ -17,9 +17,13 @@ describe('manifest.json', () => {
     assert.equal(manifest.background.type, 'module');
   });
 
-  test('requests ONLY the drive.file scope', () => {
+  test('requests ONLY the drive.file scope (manifest and web sign-in)', () => {
     assert.deepEqual(manifest.oauth2.scopes, ['https://www.googleapis.com/auth/drive.file']);
     assert.match(manifest.oauth2.client_id, /\.apps\.googleusercontent\.com$/);
+    const auth = readFileSync(join(root, 'lib', 'auth.js'), 'utf8');
+    assert.match(auth, /scope: DRIVE_SCOPE/);
+    const consts = readFileSync(join(root, 'lib', 'constants.js'), 'utf8');
+    assert.match(consts, /DRIVE_SCOPE = 'https:\/\/www\.googleapis\.com\/auth\/drive\.file'/);
   });
 
   test('has a stable key → a valid 32-char extension id', () => {
@@ -49,6 +53,7 @@ describe('manifest.json', () => {
       ...Object.values(manifest.action.default_icon),
       'offscreen/offscreen.html',
       'recorder/recorder.html',
+      'setup/setup.html',
     ];
     for (const f of files) assert.ok(existsSync(join(root, f)), f);
   });
@@ -78,7 +83,7 @@ describe('source hygiene', () => {
   });
 
   test('HTML pages only load local scripts', () => {
-    for (const page of ['popup/popup.html', 'recorder/recorder.html', 'offscreen/offscreen.html']) {
+    for (const page of ['popup/popup.html', 'recorder/recorder.html', 'offscreen/offscreen.html', 'setup/setup.html']) {
       const html = readFileSync(join(root, page), 'utf8');
       for (const m of html.matchAll(/<script[^>]*src="([^"]+)"/g)) {
         assert.ok(!/^https?:/.test(m[1]), `${page} loads remote ${m[1]}`);

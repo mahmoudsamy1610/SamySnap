@@ -10,6 +10,12 @@ export const MSG = {
   RETRY_UPLOAD: 'retry-upload',
   DOWNLOAD_LOCAL: 'download-local',
   RESET: 'reset',
+  STATUS: 'status', // → {configured, connected, redirectUri, ...}
+
+  // setup wizard → background
+  SAVE_CLIENT_ID: 'save-client-id',
+  RESET_SETUP: 'reset-setup',
+  OPEN_SETUP: 'open-setup',
 
   // recorder → background
   RECORDER_UPDATE: 'recorder-update', // { patch } merged into the shared state

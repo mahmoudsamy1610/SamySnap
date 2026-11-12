@@ -199,6 +199,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 async function init() {
+  $('version').textContent = `v${chrome.runtime.getManifest().version}`;
   const [session, local, commands] = await Promise.all([
     chrome.storage.session.get(STORAGE.state),
     chrome.storage.local.get([STORAGE.history, STORAGE.settings]),

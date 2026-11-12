@@ -20,3 +20,4 @@ footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border)
 .welcome { margin-top: 0; }
 .center { text-align: center; }
 #setup-view .muted, #connect-view p { margin-bottom: 12px; }
+.version { font-size: 11px; font-weight: 500; color: var(--muted); }

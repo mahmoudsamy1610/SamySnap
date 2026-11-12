@@ -1,6 +1,6 @@
 {
   "name": "samysnap",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Chrome extension: record your screen, stream it to Google Drive, get the link instantly.",
   "type": "module",
@@ -12,7 +12,8 @@
     "test:all": "npm test && npm run test:e2e",
     "key": "node scripts/generate-key.mjs",
     "extension-id": "node scripts/generate-key.mjs --print",
-    "logo": "node scripts/build-logo.mjs"
+    "logo": "node scripts/build-logo.mjs",
+    "bump": "node scripts/bump-version.mjs"
   },
   "engines": {
     "node": ">=20"

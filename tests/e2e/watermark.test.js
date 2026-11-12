@@ -1,6 +1,5 @@
-// Watermark in real Chromium: the frame pipeline itself (pixel-exact on a
-// synthetic black video) and the full recording flow (logo pixels present in
-// the uploaded video only when enabled).
+// Built-in mark in real Chromium: always on, small, see-through white (no
+// colour), bottom-right; both methods; present in the uploaded video.
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { launch, sleep, hasDisplay } from './harness.js';
@@ -15,8 +14,8 @@ async function start(opts) {
   return h;
 }
 
-/** Count "logo red" pixels in a region of the first decoded frame of a WebM. */
-async function redPixelsInVideo(h, bytes, region) {
+/** Stats for a region of a frame ~0.5 s into a WebM: lit pixels, max brightness, coloured pixels. */
+async function regionStats(h, bytes, region) {
   return h.page.evaluate(
     async ([b64, region]) => {
       const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -27,7 +26,6 @@ async function redPixelsInVideo(h, bytes, region) {
         v.onloadeddata = res;
         v.onerror = () => rej(new Error('video error'));
       });
-      // The very first decoded frame can be blank – play ~0.5 s in and grab that.
       await v.play();
       await new Promise((res) => {
         const check = () => (v.currentTime > 0.5 ? res() : setTimeout(check, 50));
@@ -40,33 +38,38 @@ async function redPixelsInVideo(h, bytes, region) {
       const x = Math.round(region.x * v.videoWidth);
       const y = Math.round(region.y * v.videoHeight);
       const d = ctx.getImageData(x, y, v.videoWidth - x, v.videoHeight - y).data;
-      let red = 0;
-      for (let i = 0; i < d.length; i += 4) if (d[i] > 170 && d[i + 1] < 110 && d[i + 2] < 110) red++;
-      return { red, width: v.videoWidth, height: v.videoHeight };
+      let lit = 0;
+      let max = 0;
+      let coloured = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const m = Math.max(d[i], d[i + 1], d[i + 2]);
+        if (m > 40) lit++;
+        max = Math.max(max, m);
+        if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 60) coloured++;
+      }
+      return { lit, max, coloured };
     },
     [bytes.toString('base64'), region],
   );
 }
 
-describe('watermark', { timeout: 90_000 }, () => {
-  test('frame pipeline: draws exactly in the chosen corner, keeps size and frame timing', async () => {
+describe('built-in mark', { timeout: 90_000 }, () => {
+  test('frame pipeline on a black video: only bottom-right, see-through, small, no colour', async () => {
     const h = await start();
-    const result = await h.page.evaluate(async () => {
-      const wm = await import('../lib/watermark.js');
-      // synthetic black 1280x720 source
+    const r = await h.page.evaluate(async () => {
+      const vf = await import('../lib/video-filter.js');
       const src = document.createElement('canvas');
-      src.width = 1280;
-      src.height = 720;
+      src.width = 1920;
+      src.height = 1080;
       const sctx = src.getContext('2d');
       const paint = () => {
         sctx.fillStyle = '#000';
-        sctx.fillRect(0, 0, 1280, 720);
+        sctx.fillRect(0, 0, 1920, 1080);
       };
       paint();
       const iv = setInterval(paint, 30);
       const srcTrack = src.captureStream(30).getVideoTracks()[0];
-      const logo = await wm.loadLogo('/icons/icon128.png');
-      const out = wm.watermarkTrack(srcTrack, { text: 'Acme QA', position: 'bottom-right', timestamp: true }, { logo });
+      const out = vf.filterTrack(srcTrack);
       const reader = new MediaStreamTrackProcessor({ track: out.track }).readable.getReader();
       const frames = [];
       for (let i = 0; i < 3; i++) frames.push((await reader.read()).value);
@@ -74,97 +77,63 @@ describe('watermark', { timeout: 90_000 }, () => {
       const c = new OffscreenCanvas(f.displayWidth, f.displayHeight);
       const ctx = c.getContext('2d');
       ctx.drawImage(f, 0, 0);
-      const bright = (x, y, w, hh) => {
+      const stats = (x, y, w, hh) => {
         const d = ctx.getImageData(x, y, w, hh).data;
-        let n = 0;
-        for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 300) n++;
-        return n;
+        let lit = 0, max = 0, minX = Infinity, minY = Infinity, coloured = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const m = Math.max(d[i], d[i + 1], d[i + 2]);
+          if (m > 30) {
+            lit++;
+            const p = i / 4;
+            minX = Math.min(minX, x + (p % w));
+            minY = Math.min(minY, y + Math.floor(p / w));
+          }
+          max = Math.max(max, m);
+          if (m - Math.min(d[i], d[i + 1], d[i + 2]) > 40) coloured++;
+        }
+        return { lit, max, minX, minY, coloured };
       };
-      const r = {
-        size: [f.displayWidth, f.displayHeight],
-        increasing: frames[1].timestamp > frames[0].timestamp && frames[2].timestamp > frames[1].timestamp,
-        bottomRight: bright(640, 540, 640, 180),
-        topLeft: bright(0, 0, 640, 360),
-        topRight: bright(640, 0, 640, 360),
-        bottomLeft: bright(0, 360, 640, 360),
+      const res = {
+        whole: stats(0, 0, 1920, 1080),
+        corner: stats(1440, 900, 480, 180),
+        increasing: frames[1].timestamp > frames[0].timestamp,
       };
       frames.forEach((x) => x.close());
       clearInterval(iv);
       out.stop();
       srcTrack.stop();
-      return r;
+      return res;
     });
-    assert.deepEqual(result.size, [1280, 720], 'resolution unchanged');
-    assert.ok(result.increasing, 'timestamps preserved');
-    assert.ok(result.bottomRight > 200, `watermark pixels in bottom-right: ${result.bottomRight}`);
-    assert.equal(result.topLeft, 0);
-    assert.equal(result.topRight, 0);
-    assert.equal(result.bottomLeft, 0);
+    assert.ok(r.increasing, 'timestamps preserved');
+    assert.ok(r.corner.lit > 100, `mark drawn: ${r.corner.lit} px`);
+    assert.equal(r.whole.lit, r.corner.lit, 'nothing outside the bottom-right corner');
+    assert.ok(r.whole.max < 160, `see-through (max brightness ${r.whole.max} of 255)`);
+    assert.equal(r.whole.coloured, 0, 'white only, no red');
+    // small: the whole mark fits in roughly 180×40 px at 1080p
+    assert.ok(r.whole.minX > 1920 - 200 && r.whole.minY > 1080 - 60, `box starts at ${r.whole.minX},${r.whole.minY}`);
   });
 
-  test('popup: enabling shows options and saves them', async () => {
+  test('always on, nothing to configure in the popup', async () => {
     const h = await start();
     await h.page.reload();
     await h.page.waitForSelector('#main-view:not([hidden])');
-    assert.equal(await h.page.isHidden('#wm-options'), true);
-    await h.page.check('#wm-enabled');
-    assert.equal(await h.page.isVisible('#wm-options'), true);
-    await h.page.fill('#wm-text', 'Acme   QA');
-    await h.page.selectOption('#wm-position', 'top-left');
-    await h.page.uncheck('#wm-timestamp');
-    await sleep(500);
-    const s = await h.local('settings');
-    assert.deepEqual(s.watermark, { enabled: true, text: 'Acme QA', position: 'top-left', timestamp: false });
-    await h.page.reload();
-    await h.page.waitForSelector('#main-view:not([hidden])');
-    assert.equal(await h.page.inputValue('#wm-text'), 'Acme QA');
-    assert.equal(await h.page.inputValue('#wm-position'), 'top-left');
+    assert.equal(await h.page.$('#wm-enabled'), null);
+    assert.doesNotMatch(await h.page.textContent('#main-view'), /watermark/i);
   });
 
-  test('Chrome without MediaStreamTrackGenerator → canvas fallback still burns the watermark in', { skip: !hasDisplay && 'needs a display' }, async () => {
-    const h = await start({ noInsertableStreams: true });
-    await h.page.evaluate(() =>
-      chrome.storage.local.set({ settings: { watermark: { enabled: true, text: 'Acme QA', position: 'bottom-right', timestamp: true } } }),
-    );
-    await h.send('start');
-    const s = await h.waitState((x) => x.phase === 'recording', { label: 'recording' });
-    assert.equal(s.watermark, true);
-    assert.equal(s.watermarkMethod, 'canvas');
-    assert.equal(s.watermarkError, null);
-    // popup confirms it is on
-    await h.page.reload();
-    await h.page.waitForSelector('#main-view:not([hidden])');
-    await h.waitState((x) => x.totalBytes > 0, { label: 'data' });
-    await h.page.reload();
-    await h.page.waitForSelector('#upload-status:not([hidden])');
-    assert.match(await h.page.textContent('#upload-status'), /Watermark on/);
-    await sleep(2000);
-    await h.send('stop');
-    await h.waitState((x) => x.phase === 'done', { label: 'done' });
-    const r = await redPixelsInVideo(h, h.drive.fileData(s.fileId), { x: 0.75, y: 0.8 });
-    assert.ok(r.red > 50, `logo pixels via canvas fallback: ${r.red}`);
-  });
-
-  test('full recording: logo burned into the uploaded video only when enabled', { skip: !hasDisplay && 'needs a display' }, async () => {
-    const results = {};
-    for (const enabled of [true, false]) {
-      const h = await start();
-      await h.page.evaluate(
-        (en) => chrome.storage.local.set({ settings: { watermark: { enabled: en, text: 'Acme QA', position: 'bottom-right', timestamp: true } } }),
-        enabled,
-      );
+  for (const fallback of [false, true]) {
+    test(`full recording (${fallback ? 'canvas fallback' : 'insertable streams'}): mark is in the uploaded video`, { skip: !hasDisplay && 'needs a display' }, async () => {
+      const h = await start({ noInsertableStreams: fallback });
       await h.send('start');
       const s = await h.waitState((x) => x.phase === 'recording', { label: 'recording' });
-      assert.equal(s.watermark, enabled);
-      assert.equal(s.watermarkMethod, enabled ? 'insertable-streams' : null);
+      assert.equal(s.vf, fallback ? 'canvas' : 'insertable-streams');
       await sleep(2500);
       await h.send('stop');
       await h.waitState((x) => x.phase === 'done', { label: 'done' });
-      results[enabled] = await redPixelsInVideo(h, h.drive.fileData(s.fileId), { x: 0.75, y: 0.8 });
-      await h.close();
-      open.pop();
-    }
-    assert.ok(results.true.red > 50, `logo pixels with watermark: ${results.true.red}`);
-    assert.ok(results.false.red < 5, `logo pixels without: ${results.false.red}`);
-  });
+      const r = await regionStats(h, h.drive.fileData(s.fileId), { x: 0.88, y: 0.93 });
+      assert.ok(r.lit > 40, `mark pixels: ${r.lit}`);
+      assert.ok(r.max < 200, `see-through: max ${r.max}`);
+      assert.ok(r.coloured < 5, `no colour: ${r.coloured}`);
+    });
+  }
 });

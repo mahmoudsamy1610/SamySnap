@@ -21,7 +21,7 @@ Do this once after [SETUP.md](SETUP.md), and again after any change.
 
 - [ ] Press **Ctrl+Shift+9** to start, and press it again to stop.
 - [ ] While recording, click **Pause**. The badge turns amber **II** and the timer stops. Wait 10 seconds, click **Resume**, then stop. The video skips the paused part.
-- [ ] Tick **Add watermark**, type a text, record, and check that the logo, your text and the date/time appear in the chosen corner of the video.
+- [ ] Record and check the small see-through SamySnap mark in the bottom-right corner of the video.
 - [ ] On a normal web page, press **Ctrl+Shift+7**. A "Screenshot copied ✓" preview appears; paste (Ctrl+V) into a chat or a ticket and the image is there.
 - [ ] Press **Ctrl+Shift+8** to pause and resume. Click **Stop** while paused, and the link is still copied.
 - [ ] Start recording, then click Chrome's own **Stop sharing** bar. The link is copied and the upload finishes.

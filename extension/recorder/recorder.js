@@ -17,7 +17,7 @@ import { DriveClient } from '../lib/drive.js';
 import { ResumableUploader } from '../lib/uploader.js';
 import { recordingFileName, formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
-import { normalizeWatermark, createWatermarkedTrack, loadLogo } from '../lib/watermark.js';
+import { createFilteredTrack } from '../lib/video-filter.js';
 import {
   pickMimeType,
   recorderOptions,
@@ -53,7 +53,7 @@ const rec = {
   mic: null,
   cleanupAudio: () => {},
   settings: {},
-  watermark: null, // { track, stop } when a watermark is burned in
+  filter: null, // { track, method, stop } – frame filter on the video track
   mediaRecorder: null,
   uploader: null,
   chunks: [], // full copy of the recording, kept until Drive confirms the upload
@@ -132,9 +132,6 @@ async function start() {
   setStatus('Preparing Google Drive…');
   const settings = await getSettings();
   rec.settings = settings;
-  const wm = normalizeWatermark(settings.watermark);
-  // Load the logo while the user is in the picker (only if needed).
-  const logoPromise = wm.enabled ? loadLogo(chrome.runtime.getURL('icons/icon128.png')) : Promise.resolve();
 
   // Drive preparation (file → share + session) runs WHILE the picker is open.
   // MediaRecorder only starts once both are ready, so the order required by
@@ -169,28 +166,24 @@ async function start() {
   }
   if (rec.cancelled) return cancel(Promise.resolve(rec.prep));
 
-  await beginRecording({ watermark: wm, logo: await logoPromise });
+  await beginRecording();
 }
 
-/** Video source for the recorder: the screen, with the watermark burned in if enabled. */
-async function videoSource({ watermark, logo }) {
-  if (!watermark?.enabled) return rec.display;
+/** Video source for the recorder: the screen through the frame filter (or unfiltered if unavailable). */
+async function videoSource() {
   try {
-    rec.watermark = await createWatermarkedTrack(rec.display.getVideoTracks()[0], watermark, {
-      logo,
+    rec.filter = await createFilteredTrack(rec.display.getVideoTracks()[0], {
       tickerUrl: chrome.runtime.getURL('lib/ticker-worker.js'),
     });
-    return new MediaStream([rec.watermark.track, ...rec.display.getAudioTracks()]);
+    return new MediaStream([rec.filter.track, ...rec.display.getAudioTracks()]);
   } catch (err) {
-    console.warn('watermark failed', err);
-    rec.watermarkError = `The watermark could not be added (${err?.message || err}). Recording without it.`;
-    showWarning(rec.watermarkError);
+    console.warn('frame filter unavailable', err);
     return rec.display;
   }
 }
 
-async function beginRecording(opts = {}) {
-  const { stream, cleanup } = combineStreams(await videoSource(opts), rec.mic);
+async function beginRecording() {
+  const { stream, cleanup } = combineStreams(await videoSource(), rec.mic);
   rec.cleanupAudio = cleanup;
 
   rec.uploader = new ResumableUploader({
@@ -237,9 +230,7 @@ async function beginRecording(opts = {}) {
     link: rec.prep.link,
     shared: rec.prep.shared,
     warning: rec.prep.shareWarning || ui.warning.textContent || null,
-    watermark: Boolean(rec.watermark),
-    watermarkMethod: rec.watermark?.method ?? null,
-    watermarkError: rec.watermarkError ?? null,
+    vf: rec.filter?.method ?? null,
     mimeType: rec.mimeType,
     uploadedBytes: 0,
     totalBytes: 0,
@@ -344,7 +335,7 @@ function stop(source) {
   setStatus('Finishing upload…');
   if (rec.mediaRecorder.state !== 'inactive') rec.mediaRecorder.stop(); // emits last dataavailable, then onstop
   stopStreams(rec.display, rec.mic);
-  rec.watermark?.stop();
+  rec.filter?.stop();
   rec.cleanupAudio();
 }
 

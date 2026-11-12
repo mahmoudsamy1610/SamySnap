@@ -5,7 +5,6 @@ import { STORAGE, isDriveLink } from '../lib/constants.js';
 import { MSG, PHASE, TARGET } from '../lib/messages.js';
 import { formatDuration, formatBytes } from '../lib/filename.js';
 import { elapsedMs } from '../lib/timing.js';
-import { normalizeWatermark } from '../lib/watermark.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,7 +74,7 @@ function render() {
     up.textContent =
       s.phase === PHASE.done
         ? `Upload complete${s.copied === false ? '' : ' – link is on your clipboard'}.`
-        : `Uploading…${sizes}${s.watermark && recording ? ' · Watermark on' : ''}`;
+        : `Uploading…${sizes}`;
   } else if (starting) {
     up.hidden = false;
     up.textContent = 'Choose a screen, window or tab in the picker…';
@@ -217,41 +216,6 @@ async function saveSettings(patch) {
 
 $('mic').addEventListener('change', (e) => saveSettings({ mic: e.target.checked }));
 
-// --- Watermark settings -----------------------------------------------------
-
-function renderWatermark(wm) {
-  $('wm-enabled').checked = wm.enabled;
-  $('wm-options').hidden = !wm.enabled;
-  $('wm-text').value = wm.text;
-  $('wm-position').value = wm.position;
-  $('wm-timestamp').checked = wm.timestamp;
-}
-
-function readWatermarkForm() {
-  return normalizeWatermark({
-    enabled: $('wm-enabled').checked,
-    text: $('wm-text').value,
-    position: $('wm-position').value,
-    timestamp: $('wm-timestamp').checked,
-  });
-}
-
-let wmSaveTimer = null;
-function saveWatermark({ debounce = false } = {}) {
-  clearTimeout(wmSaveTimer);
-  const run = () => saveSettings({ watermark: readWatermarkForm() });
-  if (debounce) wmSaveTimer = setTimeout(run, 300);
-  else run();
-}
-
-$('wm-enabled').addEventListener('change', () => {
-  $('wm-options').hidden = !$('wm-enabled').checked;
-  saveWatermark();
-});
-$('wm-text').addEventListener('input', () => saveWatermark({ debounce: true }));
-$('wm-text').addEventListener('change', () => saveWatermark());
-$('wm-position').addEventListener('change', () => saveWatermark());
-$('wm-timestamp').addEventListener('change', () => saveWatermark());
 
 // ---------------------------------------------------------------------------
 // Init + live updates
@@ -275,7 +239,6 @@ async function init() {
   ]);
   state = session[STORAGE.state] ?? { phase: PHASE.idle };
   $('mic').checked = Boolean(local[STORAGE.settings]?.mic);
-  renderWatermark(normalizeWatermark(local[STORAGE.settings]?.watermark));
   const cmd = commands.find((c) => c.name === 'toggle-recording');
   $('shortcut').textContent = cmd?.shortcut ? `⌨ ${cmd.shortcut}` : '⌨ Set shortcut';
   $('shortcut').title = cmd?.shortcut

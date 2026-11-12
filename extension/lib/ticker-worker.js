@@ -1,4 +1,4 @@
-// Steady timer for the canvas watermark fallback. Timers in a minimized
+// Steady timer for the canvas fallback of the frame filter. Timers in a minimized
 // window are throttled to about once per second; timers in a worker are not.
 let timer = null;
 self.onmessage = (e) => {

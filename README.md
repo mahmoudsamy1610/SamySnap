@@ -14,7 +14,7 @@ When you click **Stop**, a shareable Drive link is **already on your clipboard**
 - One-time Google sign-in, using the least-privilege `drive.file` scope.
 - 1080p / 30 fps, VP9 (falls back to VP8), about 4 Mbps, with optional tab or system audio plus microphone.
 - Red **REC** badge, **Ctrl+Shift+9** shortcut (⌘⇧9 on Mac), and a "Link copied to clipboard." notification.
-- **Watermark** (optional): logo, your text and a live date/time burned into the video.
+- **Built-in mark:** a small, see-through SamySnap mark in the corner of every video.
 - **Screenshot → clipboard** with **Ctrl+Shift+7**: captures the current tab and puts the image on your clipboard.
 - **Pause / resume** (popup, recorder window or **Ctrl+Shift+8**). The paused part is skipped in the video.
 - Videos are saved in Drive under **Bug Recordings** as `bug-YYYY-MM-DD_HH-mm-ss.webm`.

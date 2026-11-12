@@ -3,6 +3,13 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.4.0 – 2026-11-12
+
+- **Built-in watermark:** every video now carries a small, see-through **SamySnap** mark in the bottom-right corner.
+  - A thin white outline logo with light text. No red, so it doesn't hide content.
+  - About 40% smaller than before.
+  - Always on: the watermark settings were removed from the popup.
+
 ## 1.3.1 – 2026-11-12
 
 - **More reliable watermark:**

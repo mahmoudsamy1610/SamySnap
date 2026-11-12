@@ -293,7 +293,6 @@ async function onRecorderUpdate(patch) {
 
   // Recording just began → remember the link in the history.
   if (patch.phase === PHASE.recording && prev.phase !== PHASE.recording) {
-    if (patch.watermarkError) notify('samysnap-watermark', 'Recording without watermark', patch.watermarkError);
     await updateHistory((list) =>
       upsertHistory(list, {
         fileId: next.fileId,

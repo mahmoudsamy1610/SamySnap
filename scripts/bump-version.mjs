@@ -26,7 +26,8 @@ function main() {
   const pkgPath = join(root, 'package.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  const next = bump(manifest.version, part);
+  const prev = manifest.version;
+  const next = bump(prev, part);
 
   manifest.version = next;
   pkg.version = next;
@@ -39,7 +40,7 @@ function main() {
   const entry = `## ${next} – ${date}\n\n- TODO: describe the change\n\n`;
   const at = cl.indexOf('\n## ');
   writeFileSync(clPath, at === -1 ? `${cl.trimEnd()}\n\n${entry}` : `${cl.slice(0, at + 1)}${entry}${cl.slice(at + 1)}`);
-  console.log(`Version ${manifest.version} → ${next}. Fill in CHANGELOG.md.`);
+  console.log(`Version ${prev} → ${next}. Fill in CHANGELOG.md.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

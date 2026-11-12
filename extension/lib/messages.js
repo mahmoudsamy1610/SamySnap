@@ -7,6 +7,8 @@ export const MSG = {
   DISCONNECT: 'disconnect',
   START: 'start',
   STOP: 'stop',
+  PAUSE: 'pause',
+  RESUME: 'resume',
   RETRY_UPLOAD: 'retry-upload',
   DOWNLOAD_LOCAL: 'download-local',
   RESET: 'reset',
@@ -23,6 +25,8 @@ export const MSG = {
 
   // background → recorder
   RECORDER_STOP: 'recorder-stop',
+  RECORDER_PAUSE: 'recorder-pause',
+  RECORDER_RESUME: 'recorder-resume',
   RECORDER_RETRY: 'recorder-retry',
   RECORDER_DOWNLOAD: 'recorder-download',
 

@@ -3,6 +3,14 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.2.0 – 2026-11-12
+
+- **Pause / resume recording:** from the popup, the recorder window, or the new **Alt+Shift+P** shortcut.
+  - While paused, nothing is recorded, but what's already recorded keeps uploading.
+  - The timer freezes and the badge turns into an amber **II**.
+  - The final video skips the paused part.
+  - Stop works while paused, and the link is still copied instantly.
+
 ## 1.1.0 – 2026-11-12
 
 - **Setup guide:** a step-by-step page opens on install, with a button to the right Google page for each step and Copy buttons. You paste your key into the guide; there's no editing of `manifest.json`.

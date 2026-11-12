@@ -4,6 +4,7 @@
 import { STORAGE } from '../lib/constants.js';
 import { MSG, PHASE, TARGET } from '../lib/messages.js';
 import { formatDuration, formatBytes } from '../lib/filename.js';
+import { elapsedMs } from '../lib/timing.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -40,6 +41,12 @@ function render() {
   const icon = toggle.querySelector('span');
 
   const recording = s.phase === PHASE.recording;
+  const paused = recording && Boolean(s.paused);
+
+  // Pause / resume button (only while recording).
+  $('pause').hidden = !recording;
+  $('pause').querySelector('span').className = paused ? 'play' : 'bars';
+  $('pause-label').textContent = paused ? 'Resume' : 'Pause';
   const starting = s.phase === PHASE.starting;
   const finishing = s.phase === PHASE.finishing;
 
@@ -51,7 +58,9 @@ function render() {
 
   // Live line: timer + phase.
   $('live').hidden = !(recording || finishing || s.phase === PHASE.done);
-  $('phase-label').innerHTML = recording
+  $('phase-label').innerHTML = paused
+    ? '<span class="paused-indicator">II</span> Paused'
+    : recording
     ? '<span class="dot rec-indicator"></span> Recording'
     : finishing
       ? 'Uploading…'
@@ -60,7 +69,7 @@ function render() {
         : '';
   updateTimer();
   clearInterval(timerInterval);
-  if (recording) timerInterval = setInterval(updateTimer, 500);
+  if (recording && !paused) timerInterval = setInterval(updateTimer, 500);
 
   // Upload status line.
   const up = $('upload-status');
@@ -93,8 +102,7 @@ function updateTimer() {
     $('timer').textContent = '';
     return;
   }
-  const end = s.phase === PHASE.recording ? Date.now() : s.stoppedAt || Date.now();
-  $('timer').textContent = formatDuration(end - s.startedAt);
+  $('timer').textContent = formatDuration(elapsedMs(s));
 }
 
 function renderHistory(list = []) {
@@ -167,6 +175,7 @@ $('toggle').addEventListener('click', async () => {
   }
 });
 
+$('pause').addEventListener('click', () => send(state.paused ? MSG.RESUME : MSG.PAUSE));
 $('retry').addEventListener('click', () => send(MSG.RETRY_UPLOAD));
 $('download').addEventListener('click', () => send(MSG.DOWNLOAD_LOCAL));
 $('dismiss').addEventListener('click', () => send(MSG.RESET));

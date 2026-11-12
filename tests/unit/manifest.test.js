@@ -41,8 +41,9 @@ describe('manifest.json', () => {
     for (const h of manifest.host_permissions) assert.match(h, /^https:\/\/(www|oauth2)\.googleapis\.com\/\*$/);
   });
 
-  test('Alt+Shift+R toggles recording', () => {
+  test('Alt+Shift+R toggles recording, Alt+Shift+P pauses/resumes', () => {
     assert.equal(manifest.commands['toggle-recording'].suggested_key.default, 'Alt+Shift+R');
+    assert.equal(manifest.commands['pause-recording'].suggested_key.default, 'Alt+Shift+P');
   });
 
   test('all referenced files exist', () => {

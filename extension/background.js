@@ -12,6 +12,7 @@ import { MSG, PHASE, TARGET } from './lib/messages.js';
 import { upsertHistory, patchHistory } from './lib/history.js';
 import { defaultAuth, defaultAuthFetch, AuthError, isValidClientId, cleanClientId } from './lib/auth.js';
 import { DriveClient } from './lib/drive.js';
+import { elapsedMs } from './lib/timing.js';
 
 const ACTIVE_PHASES = new Set([PHASE.starting, PHASE.recording, PHASE.finishing]);
 const NOTIFY_STOP = 'samysnap-stopped';
@@ -42,7 +43,8 @@ function updateState(fn) {
 }
 
 async function applyBadge(state) {
-  const badge = {
+  const paused = state.phase === PHASE.recording && state.paused;
+  const badge = paused ? { text: 'II', color: '#e37400' } : {
     [PHASE.recording]: { text: 'REC', color: '#d93025' },
     [PHASE.finishing]: { text: '↑', color: '#1a73e8' },
     [PHASE.error]: { text: '!', color: '#f29900' },
@@ -197,7 +199,7 @@ async function stopRecording(source) {
   await updateHistory((list) =>
     patchHistory(list, state.fileId, {
       status: state.phase === PHASE.done ? 'done' : 'uploading',
-      durationMs: Date.now() - state.startedAt,
+      durationMs: elapsedMs(state),
     }),
   );
 
@@ -211,6 +213,14 @@ async function stopRecording(source) {
     priority: 1,
   });
   return { ok: true, link: state.link, copied };
+}
+
+/** Pause or resume (the recorder window does it and reports back). */
+async function setPaused(paused) {
+  const state = await readState();
+  if (state.phase !== PHASE.recording) return { ok: false, error: 'Not recording.' };
+  sendToRecorder(paused ? MSG.RECORDER_PAUSE : MSG.RECORDER_RESUME);
+  return { ok: true };
 }
 
 function sendToRecorder(type, extra = {}) {
@@ -346,6 +356,8 @@ const handlers = {
   },
   [MSG.START]: () => startRecording(),
   [MSG.STOP]: () => stopRecording('popup'),
+  [MSG.PAUSE]: () => setPaused(true),
+  [MSG.RESUME]: () => setPaused(false),
   [MSG.RECORDER_STOPPED]: () => stopRecording('recorder'),
   async [MSG.RECORDER_UPDATE](msg) {
     await onRecorderUpdate(msg.patch || {});
@@ -376,6 +388,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'pause-recording') {
+    const s = await readState();
+    if (s.phase === PHASE.recording) await setPaused(!s.paused);
+    return;
+  }
   if (command !== 'toggle-recording') return;
   const state = await readState();
   if (state.phase === PHASE.recording || state.phase === PHASE.starting) await stopRecording('shortcut');

@@ -14,6 +14,7 @@ When you click **Stop**, a shareable Drive link is **already on your clipboard**
 - One-time Google sign-in, using the least-privilege `drive.file` scope.
 - 1080p / 30 fps, VP9 (falls back to VP8), about 4 Mbps, with optional tab or system audio plus microphone.
 - Red **REC** badge, **Alt+Shift+R** shortcut, and a "Link copied to clipboard." notification.
+- **Pause / resume** (popup, recorder window or **Alt+Shift+P**). The paused part is skipped in the video.
 - Videos are saved in Drive under **Bug Recordings** as `bug-YYYY-MM-DD_HH-mm-ss.webm`.
 - Uploads retry with backoff and resume from the last received byte. If the upload really fails, you can **download the video locally**.
 

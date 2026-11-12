@@ -28,7 +28,10 @@
 
     <!-- Main -->
     <section id="main-view" hidden>
-      <button id="toggle" class="big record"><span class="dot"></span><span id="toggle-label">Record</span></button>
+      <div class="controls">
+        <button id="pause" class="big pause" hidden title="Pause / resume (Alt+Shift+P)"><span class="bars"></span><span id="pause-label">Pause</span></button>
+        <button id="toggle" class="big record"><span class="dot"></span><span id="toggle-label">Record</span></button>
+      </div>
 
       <div id="live" class="row spread live" hidden>
         <span id="phase-label" class="row"></span>

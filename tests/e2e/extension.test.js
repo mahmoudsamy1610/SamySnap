@@ -157,6 +157,57 @@ describe('recording → Drive', needsDisplay, () => {
     );
   });
 
+  test('pause / resume: nothing recorded while paused, timer frozen, amber badge, Stop works while paused', async () => {
+    const h = await start();
+    await h.openNoise();
+    const s = await startRecording(h);
+    await sleep(2500);
+
+    // Pause
+    assert.equal((await h.send('pause')).ok, true);
+    const p = await h.waitState((x) => x.paused === true, { label: 'paused' });
+    assert.equal(await h.badge(), 'II');
+    const rec = h.recorderPage();
+    assert.equal(await rec.evaluate(() => globalThis.samysnapRecorder.mediaRecorder.state), 'paused');
+    await sleep(1500); // let the flushed chunk land
+    const bytesAtPause = (await h.state()).totalBytes;
+    await sleep(3000);
+    assert.equal((await h.state()).totalBytes, bytesAtPause, 'no new data while paused');
+
+    // Popup shows Paused + Resume, timer frozen
+    await h.page.reload();
+    await h.page.waitForSelector('#pause:not([hidden])');
+    assert.equal(await h.page.textContent('#pause-label'), 'Resume');
+    assert.match(await h.page.textContent('#phase-label'), /Paused/);
+    const t1 = await h.page.textContent('#timer');
+    await sleep(1200);
+    assert.equal(await h.page.textContent('#timer'), t1, 'timer frozen while paused');
+
+    // Resume via the popup button
+    await h.page.click('#pause');
+    const r = await h.waitState((x) => x.paused === false, { label: 'resumed' });
+    assert.ok(r.pausedTotalMs >= 4000, `paused ${r.pausedTotalMs} ms`);
+    assert.equal(await h.badge(), 'REC');
+    assert.equal(await rec.evaluate(() => globalThis.samysnapRecorder.mediaRecorder.state), 'recording');
+    await h.waitState((x) => x.totalBytes > bytesAtPause, { label: 'recording again' });
+
+    // Pause again, then Stop while paused → link copied, upload completes, playable
+    await h.send('pause');
+    await h.waitState((x) => x.paused === true, { label: 'paused again' });
+    const stop = await h.send('stop');
+    assert.equal(stop.copied, true);
+    assert.equal(await h.clipboard(), s.link);
+    const done = await h.waitState((x) => x.phase === 'done', { label: 'done' });
+    const bytes = h.drive.fileData(s.fileId);
+    assert.equal(bytes.length, done.totalBytes);
+    const v = await probeVideo(h, bytes);
+    assert.ok(v.width > 0);
+    // recorded time excludes the pauses
+    const hist = await h.local('linkHistory');
+    const wall = done.stoppedAt - done.startedAt;
+    assert.ok(hist[0].durationMs < wall - 4000, `duration ${hist[0].durationMs} vs wall ${wall}`);
+  });
+
   test('Chrome "Stop sharing" bar (video track ended) behaves exactly like Stop', async () => {
     const h = await start();
     const s = await startRecording(h);

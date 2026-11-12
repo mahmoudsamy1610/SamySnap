@@ -16,6 +16,7 @@ import { defaultAuthFetch } from '../lib/auth.js';
 import { DriveClient } from '../lib/drive.js';
 import { ResumableUploader } from '../lib/uploader.js';
 import { recordingFileName, formatDuration, formatBytes } from '../lib/filename.js';
+import { elapsedMs } from '../lib/timing.js';
 import {
   pickMimeType,
   recorderOptions,
@@ -34,6 +35,7 @@ const ui = {
   error: $('error'),
   progress: $('progress'),
   stop: $('stop'),
+  pause: $('pause'),
   retry: $('retry'),
   download: $('download'),
 };
@@ -53,6 +55,9 @@ const rec = {
   uploader: null,
   chunks: [], // full copy of the recording, kept until Drive confirms the upload
   startedAt: 0,
+  paused: false,
+  pausedAt: 0,
+  pausedTotalMs: 0,
   stopping: false,
   cancelled: false,
   pickerRequestId: null,
@@ -195,6 +200,7 @@ function beginRecording() {
   ui.link.href = rec.prep.link;
   ui.stop.disabled = false;
   ui.stop.textContent = 'Stop';
+  ui.pause.hidden = false;
   if (rec.prep.shareWarning) showWarning(rec.prep.shareWarning);
   setStatus('Recording');
   startTimer();
@@ -212,6 +218,9 @@ function beginRecording() {
     totalBytes: 0,
     error: null,
     stopHandled: false,
+    paused: false,
+    pausedAt: null,
+    pausedTotalMs: 0,
   });
 
   // Get out of the way: back to the small size (the window was large for the
@@ -246,9 +255,37 @@ async function shrinkWindow({ minimize = false, focus = false } = {}) {
 }
 
 function startTimer() {
-  const tick = () => (ui.timer.textContent = formatDuration(Date.now() - rec.startedAt));
+  const tick = () => (ui.timer.textContent = formatDuration(elapsedMs(rec)));
   tick();
   rec.timerInterval = setInterval(tick, 500);
+}
+
+// ---------------------------------------------------------------------------
+// Pause / resume
+// ---------------------------------------------------------------------------
+
+function pause() {
+  const mr = rec.mediaRecorder;
+  if (!mr || rec.stopping || rec.paused || mr.state !== 'recording') return;
+  mr.requestData(); // flush what we have so it uploads while paused
+  mr.pause();
+  rec.paused = true;
+  rec.pausedAt = Date.now();
+  ui.pause.textContent = 'Resume';
+  setStatus('Paused');
+  report({ paused: true, pausedAt: rec.pausedAt, pausedTotalMs: rec.pausedTotalMs });
+}
+
+function resume() {
+  const mr = rec.mediaRecorder;
+  if (!mr || rec.stopping || !rec.paused) return;
+  mr.resume();
+  rec.pausedTotalMs += Date.now() - rec.pausedAt;
+  rec.paused = false;
+  rec.pausedAt = 0;
+  ui.pause.textContent = 'Pause';
+  setStatus('Recording');
+  report({ paused: false, pausedAt: null, pausedTotalMs: rec.pausedTotalMs });
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +313,7 @@ function stop(source) {
 
   clearInterval(rec.timerInterval);
   ui.stop.disabled = true;
+  ui.pause.hidden = true;
   setStatus('Finishing upload…');
   if (rec.mediaRecorder.state !== 'inactive') rec.mediaRecorder.stop(); // emits last dataavailable, then onstop
   stopStreams(rec.display, rec.mic);
@@ -416,12 +454,15 @@ async function fail(message, prepPromise) {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.target !== TARGET.recorder) return false;
   if (msg.type === MSG.RECORDER_STOP) stop('background');
+  else if (msg.type === MSG.RECORDER_PAUSE) pause();
+  else if (msg.type === MSG.RECORDER_RESUME) resume();
   else if (msg.type === MSG.RECORDER_RETRY) retryUpload();
   else if (msg.type === MSG.RECORDER_DOWNLOAD) downloadLocal();
   return false;
 });
 
 ui.stop.addEventListener('click', () => stop('recorder'));
+ui.pause.addEventListener('click', () => (rec.paused ? resume() : pause()));
 ui.retry.addEventListener('click', retryUpload);
 ui.download.addEventListener('click', downloadLocal);
 

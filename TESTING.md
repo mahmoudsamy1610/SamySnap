@@ -20,6 +20,9 @@ Do this once after [SETUP.md](SETUP.md), and again after any change.
 **Extras**
 
 - [ ] Press **Ctrl+Shift+9** to start, and press it again to stop.
+- [ ] Start a recording and paste right away, before stopping. The link is already on your clipboard.
+- [ ] While recording, click **Discard recording** twice. The recording stops and the file disappears from Drive › Bug Recordings.
+- [ ] After a normal Stop, click **Delete this video from Drive** twice. The file is removed from Drive.
 - [ ] While recording, click **Pause**. The badge turns amber **II** and the timer stops. Wait 10 seconds, click **Resume**, then stop. The video skips the paused part.
 - [ ] Record and check the small see-through SamySnap mark in the bottom-right corner of the video.
 - [ ] On a normal web page, press **Ctrl+Shift+7**. A "Screenshot copied ✓" preview appears; paste (Ctrl+V) into a chat or a ticket and the image is there.

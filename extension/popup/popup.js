@@ -56,11 +56,12 @@ function render() {
   toggle.classList.toggle('record', !recording && !starting);
   toggle.classList.toggle('stop', recording || starting);
   icon.className = recording || starting ? 'square' : 'dot';
-  label.textContent = recording ? 'Stop & copy link' : starting ? 'Cancel' : 'Record';
+  label.textContent = recording ? 'Stop & save' : starting ? 'Cancel' : 'Record';
   toggle.disabled = finishing;
 
   // Live line: timer + phase.
-  $('live').hidden = !(recording || finishing || s.phase === PHASE.done);
+  const discarded = s.phase === PHASE.discarded;
+  $('live').hidden = !(recording || finishing || s.phase === PHASE.done || discarded);
   renderPhaseLabel(paused ? 'paused' : recording ? 'recording' : finishing ? 'finishing' : s.phase);
   updateTimer();
   clearInterval(timerInterval);
@@ -68,13 +69,19 @@ function render() {
 
   // Upload status line.
   const up = $('upload-status');
-  if (recording || finishing || s.phase === PHASE.done) {
+  if (discarded) {
+    up.hidden = false;
+    up.textContent = s.deleted
+      ? 'Discarded – deleted from your Drive. The copied link no longer works.'
+      : `Discarded, but it could not be deleted from Drive (${s.discardError || 'error'}). Delete it in Drive › Bug Recordings.`;
+  } else if (recording || finishing || s.phase === PHASE.done) {
     up.hidden = false;
     const sizes = s.totalBytes ? ` (${formatBytes(s.uploadedBytes)} / ${formatBytes(s.totalBytes)})` : '';
+    const copiedNote = s.copiedAtStart ? 'Link copied ✓ · ' : '';
     up.textContent =
       s.phase === PHASE.done
         ? `Upload complete${s.copied === false ? '' : ' – link is on your clipboard'}.`
-        : `Uploading…${sizes}`;
+        : `${copiedNote}Uploading…${sizes}`;
   } else if (starting) {
     up.hidden = false;
     up.textContent = 'Choose a screen, window or tab in the picker…';
@@ -89,6 +96,33 @@ function render() {
   $('error').textContent = s.error || '';
   $('retry').hidden = !s.canRetry;
   $('download').hidden = !s.canDownload;
+
+  // Discard (while recording/uploading/failed) or delete (after it finished).
+  const canDiscard = recording || finishing || (s.phase === PHASE.error && s.fileId);
+  const canDelete = s.phase === PHASE.done && s.fileId;
+  const discardBtn = $('discard');
+  discardBtn.hidden = !(canDiscard || canDelete);
+  if (!discardArmed) discardBtn.textContent = canDelete ? 'Delete this video from Drive' : 'Discard recording';
+}
+
+// Two clicks to discard/delete (first click asks), so it can't happen by accident.
+let discardArmed = null;
+function onDiscardClick() {
+  const btn = $('discard');
+  if (discardArmed) {
+    clearTimeout(discardArmed);
+    discardArmed = null;
+    btn.disabled = true;
+    send(MSG.DISCARD).finally(() => (btn.disabled = false));
+    return;
+  }
+  btn.textContent = 'Click again to confirm – the video will be deleted';
+  btn.classList.add('confirm');
+  discardArmed = setTimeout(() => {
+    discardArmed = null;
+    btn.classList.remove('confirm');
+    render();
+  }, 3000);
 }
 
 /** Build the phase label with DOM APIs (no innerHTML). */
@@ -100,6 +134,7 @@ function renderPhaseLabel(phase) {
   else if (phase === 'recording') el.append(icon('dot rec-indicator'), ' Recording');
   else if (phase === 'finishing') el.append('Uploading…');
   else if (phase === PHASE.done) el.append('✓ Done');
+  else if (phase === PHASE.discarded) el.append('🗑 Discarded');
 }
 
 function updateTimer() {
@@ -193,6 +228,8 @@ $('shortcut').addEventListener('click', () => {
   chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
   window.close();
 });
+
+$('discard').addEventListener('click', onDiscardClick);
 
 $('pause').addEventListener('click', () => send(state.paused ? MSG.RESUME : MSG.PAUSE));
 $('retry').addEventListener('click', () => send(MSG.RETRY_UPLOAD));

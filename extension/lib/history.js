@@ -15,6 +15,11 @@ export function upsertHistory(list, entry, limit = HISTORY_LIMIT) {
   return [merged, ...rest].slice(0, limit);
 }
 
+/** Remove an entry (discarded / deleted video). */
+export function removeHistory(list, fileId) {
+  return (list || []).filter((e) => e.fileId !== fileId);
+}
+
 /** Update fields of an existing entry without moving it. */
 export function patchHistory(list, fileId, patch) {
   return (list || []).map((e) => (e.fileId === fileId ? { ...e, ...patch } : e));

@@ -134,6 +134,21 @@ describe('ResumableUploader – happy path', () => {
     assert.equal(last.totalBytes, data.length);
   });
 
+  test('abort(): stops for good, drops buffered data, rejects, ignores later appends', async () => {
+    const { drive, up } = await setup({ delayMs: 5 });
+    up.append(new Blob([randomBytes(3 * ALIGN)]));
+    await new Promise((r) => setTimeout(r, 2));
+    up.abort();
+    await assert.rejects(up.completion.promise, /cancelled/);
+    await new Promise((r) => setTimeout(r, 30)); // let the in-flight request settle
+    const sent = chunkPuts(drive).length;
+    up.append(new Blob([randomBytes(ALIGN)])); // recorder may still deliver a chunk
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(chunkPuts(drive).length, sent, 'nothing sent after abort');
+    assert.equal(up.bufferedBytes, 0);
+    assert.ok(sent <= 1, 'at most the in-flight request');
+  });
+
   test('append() after finish() throws', async () => {
     const { up } = await setup();
     up.finish();

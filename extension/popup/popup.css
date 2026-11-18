@@ -1,4 +1,4 @@
-body { width: 340px; padding: 14px; }
+body { width: 340px; padding: 14px; overflow-x: hidden; }
 header { margin-bottom: 12px; }
 .kbd { font-size: 11px; }
 .live { margin-top: 10px; }
@@ -32,3 +32,6 @@ header .kbd:hover { color: var(--accent); }
 button.shot { width: auto; flex: none; padding-left: 13px; padding-right: 13px; }
 .cam { width: 16px; height: 12px; display: inline-block; border: 2px solid currentColor; border-radius: 3px; position: relative; box-sizing: border-box; }
 .cam::after { content: ''; position: absolute; width: 5px; height: 5px; border: 2px solid currentColor; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); box-sizing: border-box; }
+.discard-row { margin: 2px 0 0; min-height: 0; }
+.link-btn.danger { color: var(--rec); font-size: 12px; }
+.link-btn.danger.confirm { font-weight: 700; text-decoration: underline; }

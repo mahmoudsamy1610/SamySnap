@@ -8,6 +8,7 @@ export const MSG = {
   START: 'start',
   STOP: 'stop',
   PAUSE: 'pause',
+  DISCARD: 'discard', // stop without keeping the video: delete it from Drive
   SCREENSHOT: 'screenshot',
   RESUME: 'resume',
   RETRY_UPLOAD: 'retry-upload',
@@ -27,6 +28,7 @@ export const MSG = {
   // background → recorder
   RECORDER_STOP: 'recorder-stop',
   RECORDER_PAUSE: 'recorder-pause',
+  RECORDER_DISCARD: 'recorder-discard',
   RECORDER_RESUME: 'recorder-resume',
   RECORDER_RETRY: 'recorder-retry',
   RECORDER_DOWNLOAD: 'recorder-download',
@@ -60,5 +62,6 @@ export const PHASE = {
   recording: 'recording',
   finishing: 'finishing', // stopped, final chunk(s) uploading
   done: 'done',
+  discarded: 'discarded', // recording thrown away, Drive file deleted
   error: 'error',
 };

@@ -87,6 +87,7 @@ export class ResumableUploader {
 
   /** Add a MediaRecorder chunk. Sends as soon as ≥ 256 KiB is buffered. */
   append(blob) {
+    if (this.aborted) return;
     if (this.finishing) throw new UploadError('append() after finish()');
     if (!blob || blob.size === 0) return;
     this.pending = new Blob([this.pending, blob]);
@@ -123,8 +124,19 @@ export class ResumableUploader {
     this.onProgress?.({ uploadedBytes: this.offset, totalBytes: this.appended, finishing: this.finishing });
   }
 
+  /**
+   * Discard: stop uploading for good and drop buffered data. A request that is
+   * already in flight finishes on its own; nothing is sent after it.
+   */
+  abort() {
+    if (this.completed || this.aborted) return;
+    this.aborted = true;
+    this.pending = new Blob([]);
+    this.completion.reject(new UploadError('Upload cancelled'));
+  }
+
   #kick() {
-    if (this.running || this.completed || this.error) return;
+    if (this.running || this.completed || this.error || this.aborted) return;
     this.#run();
   }
 
@@ -135,11 +147,12 @@ export class ResumableUploader {
         this.needsStatusQuery = false;
         await this.#withRetry(() => this.#queryStatus());
       }
-      while (!this.completed && !this.error) {
+      while (!this.completed && !this.error && !this.aborted) {
         if (!this.finishing && this.#alignedSize() === 0) break; // wait for more data
         await this.#withRetry(() => this.#sendNext());
       }
     } catch (err) {
+      if (this.aborted) return; // errors after a discard don't matter
       this.error = err;
       this.completion.reject(err);
       this.onError?.(err);

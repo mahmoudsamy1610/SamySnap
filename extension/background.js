@@ -9,7 +9,7 @@
 
 import { STORAGE } from './lib/constants.js';
 import { MSG, PHASE, TARGET, isFromThisExtension } from './lib/messages.js';
-import { upsertHistory, patchHistory } from './lib/history.js';
+import { upsertHistory, patchHistory, removeHistory } from './lib/history.js';
 import { defaultAuth, defaultAuthFetch, AuthError, isValidClientId, cleanClientId } from './lib/auth.js';
 import { DriveClient } from './lib/drive.js';
 import { elapsedMs } from './lib/timing.js';
@@ -180,7 +180,9 @@ async function stopRecording(source) {
   const stoppable = state.phase === PHASE.recording || (state.phase === PHASE.done && !state.stopHandled);
   if (!stoppable || state.stopHandled) return { ok: false, error: 'Not recording.' };
 
-  const copied = state.link ? await copyToClipboard(state.link) : false;
+  // The link was copied when recording started; only copy now if that failed
+  // (never overwrite something the user copied during the recording).
+  const copied = state.copiedAtStart ? true : state.link ? await copyToClipboard(state.link) : false;
 
   let changed = false;
   await updateState((s) => {
@@ -207,10 +209,12 @@ async function stopRecording(source) {
   chrome.notifications.create(NOTIFY_STOP, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-    title: copied ? 'Link copied to clipboard.' : 'Recording stopped',
-    message: copied
-      ? `${state.link}${state.warning ? `\n⚠ ${state.warning}` : ''}`
-      : `Could not copy automatically. Open the SamySnap popup to copy:\n${state.link}`,
+    title: state.copiedAtStart ? 'Recording stopped – uploading the rest' : copied ? 'Link copied to clipboard.' : 'Recording stopped',
+    message: state.copiedAtStart
+      ? `The link was copied when recording started:\n${state.link}${state.warning ? `\n⚠ ${state.warning}` : ''}`
+      : copied
+        ? `${state.link}${state.warning ? `\n⚠ ${state.warning}` : ''}`
+        : `Could not copy automatically. Open the SamySnap popup to copy:\n${state.link}`,
     priority: 1,
   });
   return { ok: true, link: state.link, copied };
@@ -272,6 +276,51 @@ function notify(id, title, message) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Discard: throw the recording away and delete it from Drive
+// ---------------------------------------------------------------------------
+
+/**
+ * While recording / uploading → the recorder window stops, cancels the upload
+ * and deletes the file. Already finished → delete the file from here.
+ */
+async function discardRecording() {
+  const state = await readState();
+  if (state.phase === PHASE.starting) {
+    sendToRecorder(MSG.RECORDER_STOP); // picker still open → plain cancel
+    return { ok: true, cancelled: true };
+  }
+  const recorderAlive =
+    state.windowId && [PHASE.recording, PHASE.finishing, PHASE.error].includes(state.phase);
+  if (recorderAlive) {
+    sendToRecorder(MSG.RECORDER_DISCARD);
+    return { ok: true };
+  }
+  if ((state.phase === PHASE.done || state.phase === PHASE.error) && state.fileId) {
+    let deleted = true;
+    let discardError = null;
+    try {
+      await new DriveClient({ authFetch: defaultAuthFetch() }).deleteFile(state.fileId);
+    } catch (err) {
+      deleted = false;
+      discardError = String(err?.message || err);
+    }
+    await onRecorderUpdate({ phase: PHASE.discarded, deleted, discardError, canDownload: false, canRetry: false });
+    return { ok: deleted, error: discardError };
+  }
+  return { ok: false, error: 'Nothing to discard.' };
+}
+
+function notifyDiscarded(s) {
+  notify(
+    'samysnap-discarded',
+    s.deleted ? 'Recording discarded' : 'Recording discarded – Drive file not deleted',
+    s.deleted
+      ? 'Deleted from your Google Drive. The link you copied no longer works.'
+      : `Could not delete it from Drive (${s.discardError || 'unknown error'}). You can delete it in Drive › Bug Recordings.`,
+  );
+}
+
 /** Pause or resume (the recorder window does it and reports back). */
 async function setPaused(paused) {
   const state = await readState();
@@ -291,8 +340,11 @@ async function onRecorderUpdate(patch) {
   const prev = await readState();
   const next = await updateState((s) => ({ ...s, ...patch }));
 
-  // Recording just began → remember the link in the history.
+  // Recording just began → copy the link right away (no notification: it
+  // would show up in the screen recording) and remember it in the history.
   if (patch.phase === PHASE.recording && prev.phase !== PHASE.recording) {
+    const copiedAtStart = next.link ? await copyToClipboard(next.link) : false;
+    await updateState((s) => ({ ...s, copiedAtStart }));
     await updateHistory((list) =>
       upsertHistory(list, {
         fileId: next.fileId,
@@ -303,6 +355,11 @@ async function onRecorderUpdate(patch) {
         shared: next.shared,
       }),
     );
+  }
+
+  if (patch.phase === PHASE.discarded && prev.phase !== PHASE.discarded) {
+    if (next.fileId) await updateHistory((list) => removeHistory(list, next.fileId));
+    notifyDiscarded(next);
   }
 
   if (patch.phase === PHASE.done && next.fileId) {
@@ -415,6 +472,7 @@ const handlers = {
   [MSG.START]: () => startRecording(),
   [MSG.STOP]: () => stopRecording('popup'),
   [MSG.PAUSE]: () => setPaused(true),
+  [MSG.DISCARD]: () => discardRecording(),
   [MSG.SCREENSHOT]: () => takeScreenshot(),
   [MSG.RESUME]: () => setPaused(false),
   [MSG.RECORDER_STOPPED]: () => stopRecording('recorder'),

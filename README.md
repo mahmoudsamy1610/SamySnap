@@ -16,6 +16,7 @@ When you click **Stop**, a shareable Drive link is **already on your clipboard**
 - Red **REC** badge, **Ctrl+Shift+9** shortcut (⌘⇧9 on Mac), and a "Link copied to clipboard." notification.
 - **Built-in mark:** a small, see-through SamySnap mark in the corner of every video.
 - **Screenshot → clipboard** with **Ctrl+Shift+7**: captures the current tab and puts the image on your clipboard.
+- **Link copied the moment recording starts**, and **Discard** to throw a recording away (deleted from Drive, frees space).
 - **Pause / resume** (popup, recorder window or **Ctrl+Shift+8**). The paused part is skipped in the video.
 - Videos are saved in Drive under **Bug Recordings** as `bug-YYYY-MM-DD_HH-mm-ss.webm`.
 - Uploads retry with backoff and resume from the last received byte. If the upload really fails, you can **download the video locally**.

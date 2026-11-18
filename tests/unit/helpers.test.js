@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { recordingFileName, screenshotFileName, formatDuration, formatBytes } from '../../extension/lib/filename.js';
-import { upsertHistory, patchHistory } from '../../extension/lib/history.js';
+import { upsertHistory, patchHistory, removeHistory } from '../../extension/lib/history.js';
 import { backoffDelay, isRetryableStatus } from '../../extension/lib/retry.js';
 import { driveViewLink, CHUNK_ALIGN } from '../../extension/lib/constants.js';
 
@@ -51,6 +51,10 @@ describe('history', () => {
   test('patch updates in place', () => {
     const list = patchHistory([e(1), e(2)], 2, { status: 'failed' });
     assert.deepEqual(list.map((x) => [x.fileId, x.status]), [[1, undefined], [2, 'failed']]);
+  });
+  test('remove deletes one entry', () => {
+    assert.deepEqual(removeHistory([e(1), e(2), e(3)], 2).map((x) => x.fileId), [1, 3]);
+    assert.deepEqual(removeHistory(undefined, 1), []);
   });
   test('handles undefined lists', () => {
     assert.deepEqual(upsertHistory(undefined, e(1)), [e(1)]);

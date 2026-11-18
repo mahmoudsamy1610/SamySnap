@@ -252,7 +252,7 @@ describe('recording → Drive', needsDisplay, () => {
     await startRecording(h);
     await h.page.reload();
     await h.page.waitForSelector('#main-view:not([hidden])');
-    assert.equal(await h.page.textContent('#toggle-label'), 'Stop & copy link');
+    assert.equal(await h.page.textContent('#toggle-label'), 'Stop & save');
     const t1 = await h.page.textContent('#timer');
     await sleep(1600);
     const t2 = await h.page.textContent('#timer');

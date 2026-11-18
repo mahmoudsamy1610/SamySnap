@@ -3,6 +3,17 @@
 The version shown in `chrome://extensions` (and in the popup) comes from `extension/manifest.json`.
 Bump it with `npm run bump -- patch|minor|major` for every change.
 
+## 1.5.0 – 2026-11-18
+
+- **Link copied when recording starts:** the Drive link goes to your clipboard the moment recording begins, not at Stop.
+  - Stop no longer overwrites your clipboard, so anything you copy during the recording stays.
+  - Stop only copies the link if the copy at the start failed.
+- **Discard a recording:** click "Discard recording" in the popup or "Discard" in the recorder window. It asks once to confirm.
+  - Recording stops, the upload is cancelled and the file is **deleted from your Drive**, so unwanted videos don't take up space.
+  - The video is removed from "Last links", and a notification reminds you the copied link no longer works.
+- **Changed your mind after Stop?** "Delete this video from Drive" in the popup removes a finished upload.
+- The Stop button now reads **"Stop & save"**.
+
 ## 1.4.0 – 2026-11-12
 
 - **Built-in watermark:** every video now carries a small, see-through **SamySnap** mark in the bottom-right corner.

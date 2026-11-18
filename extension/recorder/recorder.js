@@ -37,6 +37,7 @@ const ui = {
   progress: $('progress'),
   stop: $('stop'),
   pause: $('pause'),
+  discard: $('discard'),
   retry: $('retry'),
   download: $('download'),
 };
@@ -218,6 +219,7 @@ async function beginRecording() {
   ui.stop.disabled = false;
   ui.stop.textContent = 'Stop';
   ui.pause.hidden = false;
+  ui.discard.hidden = false;
   if (rec.prep.shareWarning) showWarning(rec.prep.shareWarning);
   setStatus('Recording');
   startTimer();
@@ -316,6 +318,7 @@ function resume() {
  * background first so the link is copied immediately.
  */
 function stop(source) {
+  if (rec.discarding) return;
   if (!rec.mediaRecorder) {
     // Still in the picker / preparing → cancel.
     rec.cancelled = true;
@@ -406,6 +409,7 @@ function onFinalFailure(err) {
   showError(`${err.message}. Your recording is safe in this window – retry or download it.`);
   ui.retry.hidden = false;
   ui.download.hidden = false;
+  ui.discard.hidden = false;
   report({ phase: PHASE.error, error: err.message, canRetry: true, canDownload: true });
   shrinkWindow({ focus: true });
 }
@@ -435,6 +439,46 @@ function downloadLocal() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+// ---------------------------------------------------------------------------
+// Discard: stop, cancel the upload, delete the Drive file
+// ---------------------------------------------------------------------------
+
+async function discard() {
+  if (rec.discarding) return;
+  if (!rec.mediaRecorder) {
+    stop('background'); // still in the picker → normal cancel (deletes the empty file)
+    return;
+  }
+  rec.discarding = true;
+  clearInterval(rec.timerInterval);
+  clearTimeout(rec.resumeTimer);
+  setStatus('Discarding…');
+  for (const b of [ui.stop, ui.pause, ui.discard, ui.retry, ui.download]) b.hidden = true;
+
+  // Stop everything without finishing the upload.
+  rec.uploader?.abort();
+  const mr = rec.mediaRecorder;
+  mr.ondataavailable = null;
+  mr.onstop = null;
+  if (mr.state !== 'inactive') mr.stop();
+  stopStreams(rec.display, rec.mic);
+  rec.filter?.stop();
+  rec.cleanupAudio();
+  rec.chunks = [];
+
+  let deleted = true;
+  let discardError = null;
+  try {
+    await drive.deleteFile(rec.prep.fileId);
+  } catch (err) {
+    deleted = false;
+    discardError = String(err?.message || err);
+  }
+  setStatus(deleted ? 'Discarded – deleted from Drive' : 'Discarded – could not delete from Drive');
+  await report({ phase: PHASE.discarded, deleted, discardError, stoppedAt: Date.now(), canDownload: false, canRetry: false });
+  setTimeout(() => window.close(), deleted ? 600 : 4000);
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +520,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === MSG.RECORDER_STOP) stop('background');
   else if (msg.type === MSG.RECORDER_PAUSE) pause();
   else if (msg.type === MSG.RECORDER_RESUME) resume();
+  else if (msg.type === MSG.RECORDER_DISCARD) discard();
   else if (msg.type === MSG.RECORDER_RETRY) retryUpload();
   else if (msg.type === MSG.RECORDER_DOWNLOAD) downloadLocal();
   return false;
@@ -483,12 +528,29 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
 ui.stop.addEventListener('click', () => stop('recorder'));
 ui.pause.addEventListener('click', () => (rec.paused ? resume() : pause()));
+
+// Two clicks to discard (first click asks), so it can't happen by accident.
+let discardArmed = null;
+ui.discard.addEventListener('click', () => {
+  if (discardArmed) {
+    clearTimeout(discardArmed);
+    discard();
+    return;
+  }
+  ui.discard.textContent = 'Click again to discard';
+  ui.discard.classList.add('confirm');
+  discardArmed = setTimeout(() => {
+    discardArmed = null;
+    ui.discard.textContent = 'Discard';
+    ui.discard.classList.remove('confirm');
+  }, 3000);
+});
 ui.retry.addEventListener('click', retryUpload);
 ui.download.addEventListener('click', downloadLocal);
 
 // Closing this window while recording/uploading would lose data → ask first.
 window.addEventListener('beforeunload', (e) => {
-  const unfinished = rec.mediaRecorder && !rec.uploader?.completed;
+  const unfinished = rec.mediaRecorder && !rec.uploader?.completed && !rec.discarding;
   if (unfinished) {
     e.preventDefault();
     e.returnValue = '';
